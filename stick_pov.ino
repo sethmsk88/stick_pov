@@ -43,23 +43,12 @@ const uint32_t YELLOW = 0xFFFF00;
 const uint32_t VIOLET = 0x0094D3;
 const uint32_t INDIGO = 0x004B82;
 
-uint8_t brightness = 128; // Brightness of LEDs 0-255 (Set to 50% brightness by default)
-uint8_t maxBrightness = 204; // 80% of 255
+const uint8_t defaultBrightness = 105; // Default is set to 50% of the brightness range
+const uint8_t maxBrightness = 230; // 90% of 255
+const uint8_t minBrightness = 20;
+const uint8_t brightnessIncrement = 15;
 
-// Parameter 1 = number of pixels in strip
-// Parameter 2 = Arduino pin number (most are valid)
-// Parameter 3 = pixel type flags, add together as needed:
-//   NEO_KHZ800  800 KHz bitstream (most NeoPixel products w/WS2812 LEDs)
-//   NEO_KHZ400  400 KHz (classic 'v1' (not v2) FLORA pixels, WS2811 drivers)
-//   NEO_GRB     Pixels are wired for GRB bitstream (most NeoPixel products)
-//   NEO_RGB     Pixels are wired for RGB bitstream (v1 FLORA pixels, not v2)
-//   NEO_RGBW    Pixels are wired for RGBW bitstream (NeoPixel RGBW products)
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_LEDS, PIN, NEO_GRB + NEO_KHZ800);
-
-// IMPORTANT: To reduce NeoPixel burnout risk, add 1000 uF capacitor across
-// pixel power leads, add 300 - 500 Ohm resistor on first pixel's data input
-// and minimize distance between Arduino and first pixel.  Avoid connecting
-// on a live circuit...if you must, connect GND first.
 
 // Create a receiver object to listen on pin 2
 IRrecv myReceiver(IR_PIN);
@@ -74,62 +63,92 @@ void setup() {
   Serial.println("Ready to receive IR signals");
   
   strip.begin();
-  strip.setBrightness(maxBrightness);
+  strip.setBrightness(defaultBrightness);
   strip.show(); // Initialize all pixels to 'off'
 }
 
 void checkButtonPress() {
   if (myReceiver.getResults()) {
     myDecoder.decode();   // decode it
-    Serial.print("Protocol: ");
-    Serial.println(myDecoder.protocolNum);
-    Serial.print("Value: ");
-    Serial.println(myDecoder.value);
+//    Serial.print("Protocol: ");
+//    Serial.println(myDecoder.protocolNum);
+//    Serial.print("Value: ");
+//    Serial.println(myDecoder.value);
 
     if (myDecoder.protocolNum == 1) {
       switch(myDecoder.value) {
-        case BTN_UP: // Up (0xFF18E7)
+        case BTN_UP:
+          increaseBrightness();
           break;
-        case BTN_DOWN: // Down (0xFF4AB5)
+        case BTN_DOWN:
+          decreaseBrightness();
           break;
-        case BTN_LEFT: // Left (0xFF10EF)
+        case BTN_LEFT:
           break;
-        case BTN_RIGHT: // Right (0xFF5AA5)
+        case BTN_RIGHT:
           break;
-        case BTN_OK: // OK (0xFF38C7)
+        case BTN_OK:
           break;
-        case BTN_1: // 1 (0xFFA25D)
+        case BTN_1:
           colorWipe(strip.Color(100, 0, 0), 20); // Red
           break;
-        case BTN_2: // 2 (0xFF629D)
+        case BTN_2:
           colorWipe(strip.Color(0, 100, 0), 20); // Green
           break;
-        case BTN_3: // 3 (0xFFE21D)
+        case BTN_3:
           colorWipe(strip.Color(0, 0, 100), 20); // Blue
           break;
-        case BTN_4: // 4 (0xFF22DD)
+        case BTN_4:
           break;
-        case BTN_5: // 5 (0xFF02FD)
+        case BTN_5:
           break;
-        case BTN_6: // 6 (0xFFC23D)
+        case BTN_6:
           break;
-        case BTN_7: // 7 (0xFFE01F)
+        case BTN_7:
           break;
-        case BTN_8: // 8 (0xFFA857)
+        case BTN_8:
           break;
-        case BTN_9: // 9 (0xFF906F)
+        case BTN_9:
           break;
-        case BTN_0: // 0 (0xFF9867)
+        case BTN_0:
           break;
-        case 16738455: // * (0xFF6897)
+        case BTN_ASTERISK:
           break;
-        case 16756815: // # (0xFFB04F)
+        case BTN_POUND:
           break;
       }
     }
 //    myDecoder.dumpResults(true);  // Now print results. Use false for less detail
     myReceiver.enableIRIn();  // restart receiver
   }
+}
+
+void increaseBrightness() {  
+  if (strip.getBrightness() < maxBrightness) {
+    if (strip.getBrightness() + brightnessIncrement >= maxBrightness) {
+      strip.setBrightness(maxBrightness);
+      Serial.println("Maximum Brightness");
+    } else {
+      strip.setBrightness(strip.getBrightness() + brightnessIncrement);
+    }
+  } else {
+    Serial.println("Maximum Brightness");    
+  }
+  strip.show();
+}
+
+void decreaseBrightness() {
+  if (strip.getBrightness() > minBrightness) {
+    if (strip.getBrightness() - brightnessIncrement <= minBrightness) {
+      strip.setBrightness(minBrightness);
+      Serial.println("Minimum Brightness");
+    } else {
+      strip.setBrightness(strip.getBrightness() - brightnessIncrement);
+    }
+  } else {
+    Serial.println("Minimum Brightness");    
+  }
+  strip.show();
 }
 
 // Set the pixels and show the column
