@@ -1,16 +1,13 @@
 #include <Adafruit_NeoPixel.h>
+#include <IRremote.h>
 #ifdef __AVR__
   #include <avr/power.h>
 #endif
 
-#include <IRLibAll.h>
-//#include <IRLibRecvLoop.h>
-//#include <IRLibRecvPCI.h>
-//#include <IRLibDecodeBase.h>
-//#include <IRLib_P01_NEC.h>
-//#include <IRLibCombo.h>
+//#include <IRLibAll.h>
 
-#define PIN 11
+
+#define DATA_PIN 11
 #define IR_PIN 5
 #define NUM_LEDS 58
 
@@ -44,27 +41,26 @@ const uint32_t YELLOW = 0xFFFF00;
 const uint32_t VIOLET = 0x0094D3;
 const uint32_t INDIGO = 0x004B82;
 
-const uint8_t defaultBrightness = 20;//105; // Default is set to 50% of the brightness range
+const uint8_t defaultBrightness = 60;//105; // Default is set to 50% of the brightness range
 const uint8_t maxBrightness = 230; // 90% of 255
 const uint8_t minBrightness = 20;
 const uint8_t brightnessIncrement = 15;
 
 uint32_t patternColumn[NUM_LEDS] = {};
-uint8_t selectedPattern = 1;
+uint8_t selectedPattern = 0;
 boolean patternChanged = true;
 boolean patternComplete = false; // used when a pattern should only show once
 uint8_t pat_i_0 = 0; // an index to track progress of a pattern
 uint8_t pat_i_1 = 0; // another index to track progress of a pattern
 
-uint32_t patternColors[] = {PURPLE, BLUE, GREEN, RED, PINK, ORANGE, YELLOW};
-
-Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_LEDS, PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_LEDS, DATA_PIN, NEO_GRB + NEO_KHZ800);
 
 // Create a receiver object to listen on pin 2
 IRrecv myReceiver(IR_PIN);
+decode_results IRresults;
 
 // Create a decoder object
-IRdecode myDecoder;
+//IRdecode myDecoder;
 
 void setup() {
   Serial.begin(9600); // Connect with Serial monitor for testing purposes
@@ -80,114 +76,61 @@ void setup() {
 // Lets check to see if this s
 void checkButtonPress() {
   // If an IR signal was received
-  if (myReceiver.getResults()) {
-    myDecoder.decode(); // decode it
+  if (myReceiver.decode(&IRresults)) {
+    Serial.println("decode_type: " + (String)IRresults.decode_type);
+    Serial.print("Value: ");
+    Serial.println(IRresults.value, HEX);
 
     // If the IR signal is using the correct protocol
-    if (myDecoder.protocolNum == 1) {
-      switch(myDecoder.value) {
-        case BTN_UP:
-          increaseBrightness();
-          break;
-        case BTN_DOWN:
-          decreaseBrightness();
-          break;
-        case BTN_LEFT:
-          break;
-        case BTN_RIGHT:
-          break;
-        case BTN_OK:
-          break;
-        case BTN_1:
-          selectedPattern = 0;
-          resetIndexesFlags();
-          break;
-        case BTN_2:
-          selectedPattern = 1;
-          resetIndexesFlags();
-          break;
-        case BTN_3:
-          selectedPattern = 2;
-          resetIndexesFlags();
-          break;
-        case BTN_4:
-          break;
-        case BTN_5:
-          break;
-        case BTN_6:
-          break;
-        case BTN_7:
-          break;
-        case BTN_8:
-          break;
-        case BTN_9:
-          break;
-        case BTN_0:
-          break;
-        case BTN_ASTERISK:
-          break;
-        case BTN_POUND:
-          break;
-      }
-        debugButton(myDecoder.value);
-//      buttonAction(myDecoder.value);
+    switch(IRresults.value) {
+      case BTN_UP:
+        increaseBrightness();
+        break;
+      case BTN_DOWN:
+        decreaseBrightness();
+        break;
+      case BTN_LEFT:
+        break;
+      case BTN_RIGHT:
+        break;
+      case BTN_OK:
+        break;
+      case BTN_1:
+        selectedPattern = 0;
+        resetIndexesFlags();
+        break;
+      case BTN_2:
+        selectedPattern = 1;
+        resetIndexesFlags();
+        break;
+      case BTN_3:
+        selectedPattern = 2;
+        resetIndexesFlags();
+        break;
+      case BTN_4:
+        break;
+      case BTN_5:
+        break;
+      case BTN_6:
+        break;
+      case BTN_7:
+        break;
+      case BTN_8:
+        break;
+      case BTN_9:
+        break;
+      case BTN_0:
+        break;
+      case BTN_ASTERISK:
+        break;
+      case BTN_POUND:
+        break;
     }
+    debugButton(IRresults.value);
+//    clearPixels();
     
     myReceiver.enableIRIn();  // Restart receiver
   }
-}
-
-
-
-void buttonAction(uint32_t buttonVal) {  
-/*
-  Serial.println("Button pressed");
-  
-  switch(buttonVal) {
-    case BTN_UP:
-      increaseBrightness();
-      break;
-    case BTN_DOWN:
-      decreaseBrightness();
-      break;
-    case BTN_LEFT:
-      break;
-    case BTN_RIGHT:
-      break;
-    case BTN_OK:
-      break;
-    case BTN_1:
-      selectedPattern = 0;
-      resetIndexesFlags();
-      break;
-    case BTN_2:
-      selectedPattern = 1;
-      resetIndexesFlags();
-      break;
-    case BTN_3:
-      selectedPattern = 2;
-      resetIndexesFlags();
-      break;
-    case BTN_4:
-      break;
-    case BTN_5:
-      break;
-    case BTN_6:
-      break;
-    case BTN_7:
-      break;
-    case BTN_8:
-      break;
-    case BTN_9:
-      break;
-    case BTN_0:
-      break;
-    case BTN_ASTERISK:
-      break;
-    case BTN_POUND:
-      break;
-  }
-  */
 }
 
 // Increase brightness of pixels
@@ -231,16 +174,17 @@ void decreaseSpeed() {
 // Set the all pixels on the strip to the values in the patternColumn array
 // and then show the pixels
 void showColumn() {
-//  Serial.println("showColumn");
   for (int i=0; i < strip.numPixels(); i++) {
     strip.setPixelColor(i, patternColumn[i]);
   }
 
-//  if (myReceiver.isIdle()) {
+  if (myReceiver.isIdle()) {
     strip.show();
-//  }
+  } else {
+    Serial.println("Skipped show()");
+  }
   
-  delay(50); // tiny bit of flicker
+//  delay(2); // tiny bit of flicker
 }
 
 // Show the pattern that is currently selected
@@ -262,42 +206,23 @@ void showPattern() {
 // Note: Loops through 7 showColumn calls before returning
 // TODO: Experiment with returning after every call of showColumn()
 void pattern0() {  
-  for (uint8_t i=0; i < strip.numPixels(); i++) {
-//    Serial.println("i: " + (String)i);
-    patternColumn[i] = BLUE;
-  }
-
-  if (patternChanged) {
-    patternChanged = false;
-    showColumn();
-  } else {
-    showColumn();
-  }
-    
-  delay(5);
-
-/*  
-//  int numPatternColors = (sizeof(patternColors) / sizeof(uint32_t));
+  uint32_t patternColors[] = {PURPLE, BLUE, GREEN, RED, PINK, ORANGE, YELLOW};
+  int numPatternColors = (sizeof(patternColors) / sizeof(uint32_t));
   
   for (uint8_t i=0; i < numPatternColors; i++) {
     for (uint8_t j=0; j < strip.numPixels(); j++) {
-//      patternColumn[j] = patternColors[i];
-      patternColumn[j] = BLUE;
+      patternColumn[j] = patternColors[i];
     }
     showColumn();
-    return;
   }
-*/
 }
 
 // Color Wipe
 void pattern1(uint32_t color, uint8_t msDelay) {  
   // If a pattern animation should only run once (e.g. Color Wipe)
   if (patternChanged || !patternComplete) {
-//  if (patternChanged)
     patternChanged = false;
-
-    Serial.println("pat_i_0: " + (String)pat_i_0);
+    
     // fill up to the pattern index
     for (uint8_t i=0; i <= pat_i_0; i++) {
       patternColumn[i] = color;
@@ -313,11 +238,11 @@ void pattern1(uint32_t color, uint8_t msDelay) {
   }
 }
 
-// Initialize column with black
-void initColumn() {
+// Set all pixels to black
+void clearPixels() {
   for (int i=0; i < strip.numPixels(); i++) {
     patternColumn[i] = BLACK;
-    strip.show();
+    showColumn();
   }
 }
 
