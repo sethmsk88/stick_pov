@@ -4,9 +4,6 @@
   #include <avr/power.h>
 #endif
 
-//#include <IRLibAll.h>
-
-
 #define DATA_PIN 11
 #define IR_PIN 5
 #define NUM_LEDS 58
@@ -28,6 +25,7 @@
 #define BTN_7 16769055 // 7 (0xFFE01F)
 #define BTN_8 16754775 // 8 (0xFFA857)
 #define BTN_9 16748655 // 9 (0xFF906F)
+#define BTN_REPEAT 0xFFFFFFFF // This IR value is sent when a button is being held down
 
 const uint32_t BLACK = 0x000000; // GRB
 const uint32_t RED_MEDIUM = 0x008800; // Medium Red
@@ -41,17 +39,28 @@ const uint32_t YELLOW = 0xFFFF00;
 const uint32_t VIOLET = 0x0094D3;
 const uint32_t INDIGO = 0x004B82;
 
-const uint8_t defaultBrightness = 60;//105; // Default is set to 50% of the brightness range
+const uint8_t defaultBrightness = 160;//105; // Default is set to 50% of the brightness range
 const uint8_t maxBrightness = 230; // 90% of 255
 const uint8_t minBrightness = 20;
-const uint8_t brightnessIncrement = 15;
+const uint8_t brightnessIncrement = 5;
 
 uint32_t patternColumn[NUM_LEDS] = {};
 uint8_t selectedPattern = 0;
+uint8_t numPatterns = 6;
 boolean patternChanged = true;
 boolean patternComplete = false; // used when a pattern should only show once
 uint8_t pat_i_0 = 0; // an index to track progress of a pattern
 uint8_t pat_i_1 = 0; // another index to track progress of a pattern
+uint8_t speedDelay = 0; // ms of delay between showing columns
+uint8_t maxSpeedDelay = 50;
+uint32_t lastButtonPress = 0;
+unsigned long buttonPressStartTime = 0;
+unsigned long longButtonPressTime = 1500; // 1.5 seconds
+boolean longButtonPress = false;
+unsigned long delayBeforeHoldingButton = 500;
+boolean holdingButton = false;
+unsigned long lastIRSignalReceivedTime = 0;
+unsigned long noIRSignalDelay = 200; // if there are no IR signals for this amount of time, then we can say there are no active IR signals
 
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_LEDS, DATA_PIN, NEO_GRB + NEO_KHZ800);
 
@@ -75,62 +84,172 @@ void setup() {
 
 // Lets check to see if this s
 void checkButtonPress() {
+  uint32_t buttonVal;
+  unsigned long currentTime = millis();
+  
   // If an IR signal was received
   if (myReceiver.decode(&IRresults)) {
-    Serial.println("decode_type: " + (String)IRresults.decode_type);
-    Serial.print("Value: ");
-    Serial.println(IRresults.value, HEX);
+    lastIRSignalReceivedTime = currentTime;
+    buttonVal = IRresults.value;
 
-    // If the IR signal is using the correct protocol
-    switch(IRresults.value) {
-      case BTN_UP:
-        increaseBrightness();
-        break;
-      case BTN_DOWN:
-        decreaseBrightness();
-        break;
-      case BTN_LEFT:
-        break;
-      case BTN_RIGHT:
-        break;
-      case BTN_OK:
-        break;
-      case BTN_1:
-        selectedPattern = 0;
-        resetIndexesFlags();
-        break;
-      case BTN_2:
-        selectedPattern = 1;
-        resetIndexesFlags();
-        break;
-      case BTN_3:
-        selectedPattern = 2;
-        resetIndexesFlags();
-        break;
-      case BTN_4:
-        break;
-      case BTN_5:
-        break;
-      case BTN_6:
-        break;
-      case BTN_7:
-        break;
-      case BTN_8:
-        break;
-      case BTN_9:
-        break;
-      case BTN_0:
-        break;
-      case BTN_ASTERISK:
-        break;
-      case BTN_POUND:
-        break;
+    // If it's a valid IR signal
+    if (isValidIRValue(buttonVal)) {
+      // If it's a repeat IR signal
+      if (buttonVal == BTN_REPEAT) {
+        
+        // Wait a short amount of time before setting the holdingButton flag to TRUE
+        // If holdingButton flag is not set, and the holding button delay time has passed (i.e. 300ms)
+        if (!holdingButton && (currentTime > buttonPressStartTime + delayBeforeHoldingButton)) {
+//          Serial.println((String)currentTime + " > " + (String)(buttonPressStartTime + delayBeforeHoldingButton));
+//          Serial.println("Setting holdingButton to TRUE");
+          holdingButton = true;
+        }
+        
+        // if holding a button, longButtonPress is NOT yet set, and longButtonPressTime has passed
+        if (holdingButton && !longButtonPress && (currentTime > buttonPressStartTime + longButtonPressTime)) {
+//          Serial.println((String)currentTime + " > " + (String)(buttonPressStartTime + longButtonPressTime));
+//          Serial.println("Setting longButtonPress to TRUE");
+          longButtonPress = true;
+        }
+        buttonVal = lastButtonPress;
+      } else {
+        lastButtonPress = buttonVal;
+        buttonPressStartTime = currentTime; // start long press timer
+//        Serial.println("Setting buttonPressStartTime to " + (String)currentTime);
+
+        if (longButtonPress) {
+          longButtonPress = false;
+//          Serial.println("Setting longButtonPress to FALSE");
+        }
+        if (holdingButton) {
+          holdingButton = false;
+//          Serial.println("Setting holdingButton to FALSE");
+        }
+      }
+
+      // While waiting for a long press to register (i.e. 1-2 seconds), do NOT perform the action
+      // of the pressed button, but DO color the stick RED
+      // If it's a repeat IR signal, holdingButton flag is set, and longButtonPress flag is NOT yet set
+      if (IRresults.value == BTN_REPEAT && !longButtonPress) {
+        if (holdingButton) {
+          setAllPixels(RED);
+        } else {
+          // Do nothing
+        }
+      }
+      // Else, we are either repeating, holding, and longPressing, or we are
+      // not repeating, not holding, and not longPressing.
+      // In either case, we perform a normal button action
+      else {
+        switch(buttonVal) {
+          case BTN_UP:
+            if (longButtonPress) {
+              increaseBrightness();
+            } else {
+              increaseSpeed();
+            }
+            break;
+          case BTN_DOWN:
+            if (longButtonPress) {
+              decreaseBrightness();
+            } else {
+              decreaseSpeed();
+            }
+            break;
+          case BTN_LEFT:
+            prevPattern();
+            break;
+          case BTN_RIGHT:
+            nextPattern();
+            break;
+          case BTN_OK:
+            break;
+          case BTN_1:
+            break;
+          case BTN_2:
+            break;
+          case BTN_3:
+            break;
+          case BTN_4:
+            break;
+          case BTN_5:
+            break;
+          case BTN_6:
+            break;
+          case BTN_7:
+            break;
+          case BTN_8:
+            break;
+          case BTN_9:
+            break;
+          case BTN_0:
+            break;
+          case BTN_ASTERISK:
+            break;
+          case BTN_POUND:
+            break;
+        }
+      }
+      debugButton(buttonVal);
     }
-    debugButton(IRresults.value);
-//    clearPixels();
-    
     myReceiver.enableIRIn();  // Restart receiver
+//    clearPixels();
+  } else {
+    if (longButtonPress && (currentTime > lastIRSignalReceivedTime + noIRSignalDelay)){
+      longButtonPress = false;
+//      Serial.println("Setting longButtonPress to FALSE");
+    }
+    if (holdingButton && (currentTime > lastIRSignalReceivedTime + noIRSignalDelay)){
+      holdingButton = false;
+//      Serial.println("Setting holdingButton to FALSE");
+    }
   }
+}
+
+// Check to see if IR signal is a valid button code
+boolean isValidIRValue(uint32_t irValue) {
+  switch (irValue) {
+    case BTN_UP:
+    case BTN_DOWN:
+    case BTN_LEFT:
+    case BTN_RIGHT:
+    case BTN_OK:
+    case BTN_1:
+    case BTN_2:
+    case BTN_3:
+    case BTN_4:
+    case BTN_5:
+    case BTN_6:
+    case BTN_7:
+    case BTN_8:
+    case BTN_9:
+    case BTN_0:
+    case BTN_ASTERISK:
+    case BTN_POUND:
+    case BTN_REPEAT:
+//      Serial.println("Valid IR value");
+      return true;
+  }
+//  Serial.println("Invalid IR value");
+  return false;
+}
+
+void nextPattern() {
+  if (selectedPattern < numPatterns - 1) {
+    selectedPattern++;
+  } else {
+    selectedPattern = 0;
+  }
+  resetIndexesFlags();
+}
+
+void prevPattern() {
+  if (selectedPattern > 0) {
+    selectedPattern--;
+  } else {
+    selectedPattern = numPatterns - 1;
+  }
+  resetIndexesFlags();
 }
 
 // Increase brightness of pixels
@@ -165,10 +284,22 @@ void decreaseBrightness() {
 
 // Increase speed of pattern
 void increaseSpeed() {
+  if (speedDelay <= 0) {
+    speedDelay = 0;
+  } else {
+    speedDelay--;
+  }
+  Serial.println("Speed Delay: " + (String)speedDelay);
 }
 
 // Decrease speed of pattern
 void decreaseSpeed() {
+  if (speedDelay >= maxSpeedDelay) {
+    speedDelay = maxSpeedDelay;
+  } else {
+    speedDelay++;
+  }
+  Serial.println("Speed Delay: " + (String)speedDelay);
 }
 
 // Set the all pixels on the strip to the values in the patternColumn array
@@ -180,18 +311,19 @@ void showColumn() {
 
   if (myReceiver.isIdle()) {
     strip.show();
-  } else {
-    Serial.println("Skipped show()");
   }
   
-//  delay(2); // tiny bit of flicker
+  delay(speedDelay); // tiny bit of flicker
 }
 
 // Show the pattern that is currently selected
 void showPattern() {
+  uint32_t colorSet_0[] = {PURPLE, BLUE, GREEN, RED, PINK, ORANGE, YELLOW};
+  uint32_t colorSet_1[] = {GREEN, RED};
+  
   switch (selectedPattern) {
     case 0:
-      pattern0();
+      pattern0(colorSet_0, (sizeof(colorSet_0) / sizeof(uint32_t)));
       break;
     case 1:
       pattern1(RED, 20);
@@ -199,16 +331,22 @@ void showPattern() {
     case 2:
       pattern1(GREEN, 10);
       break;
+    case 3:
+      pattern0(colorSet_1, (sizeof(colorSet_1) / sizeof(uint32_t)));
+      break;
+    case 4:
+//      pattern2();
+      break;
+    case 5:
+//      pattern3();
+      break;
   }
 }
 
 // Create vertical columns of the colors listed below
 // Note: Loops through 7 showColumn calls before returning
 // TODO: Experiment with returning after every call of showColumn()
-void pattern0() {  
-  uint32_t patternColors[] = {PURPLE, BLUE, GREEN, RED, PINK, ORANGE, YELLOW};
-  int numPatternColors = (sizeof(patternColors) / sizeof(uint32_t));
-  
+void pattern0(uint32_t patternColors[], int numPatternColors) {  
   for (uint8_t i=0; i < numPatternColors; i++) {
     for (uint8_t j=0; j < strip.numPixels(); j++) {
       patternColumn[j] = patternColors[i];
@@ -238,12 +376,153 @@ void pattern1(uint32_t color, uint8_t msDelay) {
   }
 }
 
+// Displays diamonds
+void pattern2() {
+  // Note: this solution prints the whole pattern before returning
+  uint32_t color1 = RED;
+  uint32_t color2 = GREEN;
+  uint8_t row_i = 0;
+    
+  uint8_t height = 15;
+  uint8_t c, k, space = 1;
+
+  // if pattern is at the beginning
+//  if (pat_i
+
+  space = height - 1;
+
+  while (row_i < strip.numPixels()) {
+    // Top half, if printed
+    // Left half, if on stick
+    for (k = 1; k <= height; k++) {
+      for (c = 1; c <= space; c++) {
+        if (row_i >= strip.numPixels())
+          break;
+        Serial.print("0");
+        patternColumn[row_i] = color1;
+        row_i++;
+      }
+      for (c = 1; c <= 2*k-1;c++) {
+        if (row_i >= strip.numPixels())
+          break;
+        Serial.print("1");
+        patternColumn[row_i] = color2;
+        row_i++;
+      }
+      for (c = 1; c <= space; c++) {
+        if (row_i >= strip.numPixels())
+          break;
+        Serial.print("0");
+        patternColumn[row_i] = color1;
+        row_i++;
+      }
+      showColumn();
+      if (row_i >= strip.numPixels())
+        break;
+          
+      Serial.println("");
+      space--;
+    }
+  
+    // Bottom half, if printed
+    // Right half, if on stick
+    for (k = 1; k <= height - 1; k++) {
+      for (c= 1; c <= space; c++) {
+        if (row_i >= strip.numPixels())
+          break;
+        Serial.print("0");
+        patternColumn[row_i] = color1;
+        row_i++;
+      }
+      for (c = 1; c <= 2*(height - k)-1; c++) {
+        if (row_i >= strip.numPixels())
+          break;
+        Serial.print("*");
+        patternColumn[row_i] = color2;
+        row_i++;
+      }
+      for (c= 1; c <= space; c++) {
+        if (row_i >= strip.numPixels())
+          break;
+        Serial.print("0");
+        patternColumn[row_i] = color1;
+        row_i++;
+      }
+      if (row_i >= strip.numPixels())
+        break;
+      Serial.println("");
+      space++;
+    }
+  }
+}
+
+// Stretched Diamond
+// This function should stretch the pattern in the array pat by the factor stretch, and
+// then flip it vertically and print the bottom half.
+void pattern3() {
+  int pixel_i = 0;
+  uint32_t c1 = RED;
+  uint32_t c2 = GREEN;
+  int height = 7;
+  int width = 13;
+  int stretch = 3; // factor by which we are stretching the pattern vertically
+  int pat[height][width] = {
+    {0,0,0,0,0,0,1,0,0,0,0,0,0},
+    {0,0,0,0,0,1,1,1,0,0,0,0,0},
+    {0,0,0,0,1,1,1,1,1,0,0,0,0},
+    {0,0,0,1,1,1,1,1,1,1,0,0,0},
+    {0,0,1,1,1,1,1,1,1,1,1,0,0},
+    {0,1,1,1,1,1,1,1,1,1,1,1,0},
+    {1,1,1,1,1,1,1,1,1,1,1,1,1}
+  };
+
+  int r; // needs to be in this scope
+  for (int c=0; c < width; c++) {
+    // top half
+    for (r=0; r < height; r++) {
+      for (int repeat_i=0; repeat_i < stretch; repeat_i++) {
+        if (pixel_i >= strip.numPixels())
+          break;
+        
+        patternColumn[pixel_i] = pat[r][c] ? c1 : c2;
+        pixel_i++;
+      }
+      if (pixel_i >= strip.numPixels())
+        break;
+    }
+    // bottom half
+    for (r=r-2; r > 0; r--) {
+      for (int repeat_i=0; repeat_i < stretch; repeat_i++) {
+
+        if (pixel_i >= strip.numPixels())
+          break;
+        
+        patternColumn[pixel_i] = pat[r][c] ? c1 : c2;
+        pixel_i++;
+      }
+      if (pixel_i >= strip.numPixels())
+        break;
+    }
+    showColumn();
+    
+    if (pixel_i >= strip.numPixels())
+      break;
+  }
+}
+
 // Set all pixels to black
 void clearPixels() {
   for (int i=0; i < strip.numPixels(); i++) {
     patternColumn[i] = BLACK;
     showColumn();
   }
+}
+
+void setAllPixels(uint32_t color) {
+  for (int i=0; i < strip.numPixels(); i++) {
+    patternColumn[i] = color;
+  }
+  showColumn();
 }
 
 // Reset indexes and flags
@@ -255,8 +534,13 @@ void resetIndexesFlags() {
 }
 
 void loop() {
+
+  if (holdingButton) {
+    setAllPixels(RED);
+  } else {
+    showPattern();
+  }
   
-  showPattern();
   checkButtonPress();
 
   // DEBUGGING
@@ -371,55 +655,60 @@ uint32_t Wheel(byte WheelPos) {
 void debugButton(uint32_t buttonVal) {
   switch(buttonVal) {
     case BTN_UP:
-      Serial.println("Button [UP]");
+      Serial.print("Button [UP]");
       break;
     case BTN_DOWN:
-      Serial.println("Button [DOWN]");
+      Serial.print("Button [DOWN]");
       break;
     case BTN_LEFT:
-      Serial.println("Button [LEFT]");
+      Serial.print("Button [LEFT]");
       break;
     case BTN_RIGHT:
-      Serial.println("Button [RIGHT]");
+      Serial.print("Button [RIGHT]");
       break;
     case BTN_OK:
-      Serial.println("Button [OK]");
+      Serial.print("Button [OK]");
       break;
     case BTN_1:
-      Serial.println("Button [1]");
+      Serial.print("Button [1]");
       break;
     case BTN_2:
-      Serial.println("Button [2]");
+      Serial.print("Button [2]");
       break;
     case BTN_3:
-      Serial.println("Button [3]");
+      Serial.print("Button [3]");
       break;
     case BTN_4:
-      Serial.println("Button [4]");
+      Serial.print("Button [4]");
       break;
     case BTN_5:
-      Serial.println("Button [5]");
+      Serial.print("Button [5]");
       break;
     case BTN_6:
-      Serial.println("Button [6]");
+      Serial.print("Button [6]");
       break;
     case BTN_7:
-      Serial.println("Button [7]");
+      Serial.print("Button [7]");
       break;
     case BTN_8:
-      Serial.println("Button [8]");
+      Serial.print("Button [8]");
       break;
     case BTN_9:
-      Serial.println("Button [9]");
+      Serial.print("Button [9]");
       break;
     case BTN_0:
-      Serial.println("Button [0]");
+      Serial.print("Button [0]");
       break;
     case BTN_ASTERISK:
-      Serial.println("Button [*]");
+      Serial.print("Button [*]");
       break;
     case BTN_POUND:
-      Serial.println("Button [#]");
+      Serial.print("Button [#]");
       break;
+  }
+  if (longButtonPress) {
+    Serial.println(" (LONG)");
+  } else {
+    Serial.println("");
   }
 }
