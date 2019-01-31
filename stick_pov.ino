@@ -49,8 +49,8 @@ uint8_t selectedPattern = 0;
 uint8_t numPatterns = 6;
 boolean patternChanged = true;
 boolean patternComplete = false; // used when a pattern should only show once
-uint8_t pat_i_0 = 0; // an index to track progress of a pattern
-uint8_t pat_i_1 = 0; // another index to track progress of a pattern
+uint16_t pat_i_0 = 0; // an index to track progress of a pattern
+uint16_t pat_i_1 = 0; // another index to track progress of a pattern
 uint8_t speedDelay = 0; // ms of delay between showing columns
 uint8_t maxSpeedDelay = 50;
 uint32_t lastButtonPress = 0;
@@ -67,9 +67,6 @@ Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_LEDS, DATA_PIN, NEO_GRB + NEO_KH
 // Create a receiver object to listen on pin 2
 IRrecv myReceiver(IR_PIN);
 decode_results IRresults;
-
-// Create a decoder object
-//IRdecode myDecoder;
 
 void setup() {
   Serial.begin(9600); // Connect with Serial monitor for testing purposes
@@ -94,6 +91,8 @@ void checkButtonPress() {
 
     // If it's a valid IR signal
     if (isValidIRValue(buttonVal)) {
+//      Serial.println("Valid IR signal received");
+      
       // If it's a repeat IR signal
       if (buttonVal == BTN_REPEAT) {
         
@@ -257,12 +256,12 @@ void increaseBrightness() {
   if (strip.getBrightness() < maxBrightness) {
     if (strip.getBrightness() + brightnessIncrement >= maxBrightness) {
       strip.setBrightness(maxBrightness);
-//      Serial.println("Maximum Brightness");
+      Serial.println("Maximum Brightness");
     } else {
       strip.setBrightness(strip.getBrightness() + brightnessIncrement);
     }
   } else {
-//    Serial.println("Maximum Brightness");    
+    Serial.println("Maximum Brightness");    
   }
   strip.show();
 }
@@ -272,12 +271,12 @@ void decreaseBrightness() {
   if (strip.getBrightness() > minBrightness) {
     if (strip.getBrightness() - brightnessIncrement <= minBrightness) {
       strip.setBrightness(minBrightness);
-//      Serial.println("Minimum Brightness");
+      Serial.println("Minimum Brightness");
     } else {
       strip.setBrightness(strip.getBrightness() - brightnessIncrement);
     }
   } else {
-//    Serial.println("Minimum Brightness");    
+    Serial.println("Minimum Brightness");    
   }
   strip.show();
 }
@@ -320,6 +319,7 @@ void showColumn() {
 void showPattern() {
   uint32_t colorSet_0[] = {PURPLE, BLUE, GREEN, RED, PINK, ORANGE, YELLOW};
   uint32_t colorSet_1[] = {GREEN, RED};
+  uint32_t colorSet_2[] = {BLUE, GREEN};
   
   switch (selectedPattern) {
     case 0:
@@ -335,9 +335,12 @@ void showPattern() {
       pattern0(colorSet_1, (sizeof(colorSet_1) / sizeof(uint32_t)));
       break;
     case 4:
+        pattern0(colorSet_2, (sizeof(colorSet_2) / sizeof(uint32_t)));
 //      pattern2();
       break;
     case 5:
+      pattern4();
+//        rainbowCycle(10);
 //      pattern3();
       break;
   }
@@ -510,6 +513,29 @@ void pattern3() {
   }
 }
 
+// Rainbow
+void pattern4() {
+  uint16_t pat_i_0_max = 256;
+  uint16_t pat_i_1_max = strip.numPixels();
+
+  // Reset pattern indexes if they exceed their max values
+  if (pat_i_0 >= pat_i_0_max) {
+    pat_i_0 = 0;
+  }
+  if (pat_i_1 >= pat_i_1_max) {
+    pat_i_1 = 0;
+  }
+  while (pat_i_0 < 256) {
+    while (pat_i_1 < pat_i_1_max) {
+      patternColumn[pat_i_1] = Wheel(((pat_i_1 * 256 / strip.numPixels()) + pat_i_0) & 255);
+      pat_i_1++;
+    }
+    pat_i_0++;
+    showColumn();
+    return;
+  }
+}
+
 // Set all pixels to black
 void clearPixels() {
   for (int i=0; i < strip.numPixels(); i++) {
@@ -534,7 +560,6 @@ void resetIndexesFlags() {
 }
 
 void loop() {
-
   if (holdingButton) {
     setAllPixels(RED);
   } else {
@@ -578,7 +603,7 @@ void colorWipe(uint32_t c, uint8_t wait) {
 
 void rainbow(uint8_t wait) {
   uint16_t i, j;
-
+  
   for(j=0; j<256; j++) {
     for(i=0; i<strip.numPixels(); i++) {
       strip.setPixelColor(i, Wheel((i+j) & 255));
