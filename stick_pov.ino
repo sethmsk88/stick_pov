@@ -3,6 +3,8 @@
 #ifdef __AVR__
   #include <avr/power.h>
 #endif
+#include <MemoryFree.h>
+#include <EEPROM.h>
 
 #define DATA_PIN 11
 #define IR_PIN 5
@@ -26,6 +28,22 @@
 #define BTN_8 16754775 // 8 (0xFFA857)
 #define BTN_9 16748655 // 9 (0xFF906F)
 #define BTN_REPEAT 0xFFFFFFFF // This IR value is sent when a button is being held down
+
+// Each favorite saves two bytes worth of info, so each is allocated two addresses
+// First address contains the index of the saved pattern
+// Second address contains the speed delay of the saved pattern
+const uint16_t FAV_0 = 0;
+const uint16_t FAV_1 = 2;
+const uint16_t FAV_2 = 4;
+const uint16_t FAV_3 = 6;
+const uint16_t FAV_4 = 8;
+const uint16_t FAV_5 = 10;
+const uint16_t FAV_6 = 12;
+const uint16_t FAV_7 = 14;
+const uint16_t FAV_8 = 16;
+const uint16_t FAV_9 = 18;
+const uint16_t BRIGHTNESS_SAVED = 20; // Only needs one byte, so one address
+const uint16_t LAST_PATTERN_SAVED = 21; // Only needs one byte, so one address
 
 const uint32_t BLACK = 0x000000; // GRB
 const uint32_t RED_MEDIUM = 0x008800; // Medium Red
@@ -61,6 +79,9 @@ unsigned long delayBeforeHoldingButton = 500;
 boolean holdingButton = false;
 unsigned long lastIRSignalReceivedTime = 0;
 unsigned long noIRSignalDelay = 200; // if there are no IR signals for this amount of time, then we can say there are no active IR signals
+uint8_t favoriteButton_i = 99; // unreachable favorite button index
+boolean buttonActionPerformed = false;
+unsigned long noIRSignalDelay = 300;
 
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_LEDS, DATA_PIN, NEO_GRB + NEO_KHZ800);
 
@@ -68,21 +89,110 @@ Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_LEDS, DATA_PIN, NEO_GRB + NEO_KH
 IRrecv myReceiver(IR_PIN);
 decode_results IRresults;
 
+void types(uint16_t var) {Serial.println("Type is uint16_t");}
+void types(int32_t var) {Serial.println("Type is int32_t");}
+void types(uint32_t var) {Serial.println("Type is uint32_t");}
+
 void setup() {
   Serial.begin(9600); // Connect with Serial monitor for testing purposes
 
   myReceiver.enableIRIn(); // start the receiver
   Serial.println("Ready to receive IR signals");
+
+  applySavedSettings();
+
+//  Serial.print("Saved at 0: ");
+//  Serial.println(EEPROM.read(2));
+//  Serial.print("Saved at 1: ");
+//  Serial.println(EEPROM.read(3));
   
   strip.begin();
   strip.setBrightness(defaultBrightness);
   strip.show();
 }
 
+void applySavedSettings() {
+  int patternIndex_addr;
+  int speedDelay_addr;
+  int unsetVal = 255; // the number stored at an address that is unset
+  
+  // if favorites have not yet been saved, set them to 0
+  for (int i=0; i <= 9; i++) {
+    patternIndex_addr = getFavoriteAddr(i, 0);
+    speedDelay_addr = getFavoriteAddr(i, 1);
+
+    if (EEPROM.read(patternIndex_addr) == unsetVal) {
+      EEPROM.update(patternIndex_addr, 0);
+      EEPROM.update(speedDelay_addr, 0);
+    }
+  }
+}
+
+// Save a favorite
+void setFavorite(uint8_t i) {
+  int patternIndex_addr = getFavoriteAddr(i, 0);
+  int speedDelay_addr = getFavoriteAddr(i, 1);
+  
+  EEPROM.update(patternIndex_addr, selectedPattern);
+  EEPROM.update(speedDelay_addr, speedDelay);
+
+  Serial.println("Favorite " + (String)i + " saved:");
+  Serial.println("Pattern index = " + (String)selectedPattern);
+  Serial.println("Speed delay = " + (String)speedDelay);
+}
+
+// Get a saved favorite, and make it active
+void getFavorite(uint8_t i) {
+  int patternIndex_addr = getFavoriteAddr(i, 0);
+  int speedDelay_addr = getFavoriteAddr(i, 1);
+  
+  selectedPattern = EEPROM.read(patternIndex_addr);
+  speedDelay = EEPROM.read(speedDelay_addr);
+}
+
+// Get address of favorite in EEPROM
+// fav_i - Favorite number (0 - 9)
+// attr_i - index of the favorite attribute (0 - 1)
+int getFavoriteAddr(int fav_i, int attr_i) {
+  switch (fav_i) {
+    case 0:
+      return FAV_0 + attr_i;
+      break;
+    case 1:
+      return FAV_1 + attr_i;
+      break;
+    case 2:
+      return FAV_2 + attr_i;
+      break;
+    case 3:
+      return FAV_3 + attr_i;
+      break;
+    case 4:
+      return FAV_4 + attr_i;
+      break;
+    case 5:
+      return FAV_5 + attr_i;
+      break;
+    case 6:
+      return FAV_6 + attr_i;
+      break;
+    case 7:
+      return FAV_7 + attr_i;
+      break;
+    case 8:
+      return FAV_8 + attr_i;
+      break;
+    case 9:
+      return FAV_9 + attr_i;
+      break;      
+  }
+}
+
 // Lets check to see if this s
 void checkButtonPress() {
   uint32_t buttonVal;
   unsigned long currentTime = millis();
+  uint8_t favoriteButton = 99; // unreachable favorite button index
   
   // If an IR signal was received
   if (myReceiver.decode(&IRresults)) {
@@ -136,7 +246,7 @@ void checkButtonPress() {
           // Do nothing
         }
       }
-      // Else, we are either repeating, holding, and longPressing, or we are
+      // Else, we are either repeating, holding, and longPressing; or we are
       // not repeating, not holding, and not longPressing.
       // In either case, we perform a normal button action
       else {
@@ -164,6 +274,11 @@ void checkButtonPress() {
           case BTN_OK:
             break;
           case BTN_1:
+            if (longButtonPress) {
+              setFavorite(1);
+            } else {
+              getFavorite(1);
+            }
             break;
           case BTN_2:
             break;
@@ -188,6 +303,9 @@ void checkButtonPress() {
           case BTN_POUND:
             break;
         }
+
+        // if we clicked a favorite button
+        
       }
       debugButton(buttonVal);
     }
@@ -335,15 +453,17 @@ void showPattern() {
       pattern0(colorSet_1, (sizeof(colorSet_1) / sizeof(uint32_t)));
       break;
     case 4:
-        pattern0(colorSet_2, (sizeof(colorSet_2) / sizeof(uint32_t)));
+      pattern0(colorSet_2, (sizeof(colorSet_2) / sizeof(uint32_t)));
 //      pattern2();
       break;
     case 5:
       pattern4();
-//        rainbowCycle(10);
 //      pattern3();
       break;
   }
+
+//  Serial.print("Free memory = ");
+//  Serial.println(freeMemory());
 }
 
 // Create vertical columns of the colors listed below
