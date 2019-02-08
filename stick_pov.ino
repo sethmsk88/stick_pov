@@ -3,7 +3,7 @@
 #ifdef __AVR__
   #include <avr/power.h>
 #endif
-#include <MemoryFree.h>
+//#include <MemoryFree.h>
 #include <EEPROM.h>
 
 #define DATA_PIN 11
@@ -74,7 +74,8 @@ boolean patternComplete = false; // used when a pattern should only show once
 uint16_t pat_i_0 = 0; // an index to track progress of a pattern
 uint16_t pat_i_1 = 0; // another index to track progress of a pattern
 uint8_t speedDelay = 0; // ms of delay between showing columns
-uint8_t maxSpeedDelay = 50;
+uint8_t maxSpeedDelay = 31;
+uint8_t speedIncrement = 2;
 boolean shortButtonPress = false;
 boolean longButtonPress = false;
 uint32_t lastButtonPress = 0;
@@ -439,7 +440,12 @@ void increaseSpeed() {
   if (speedDelay <= 0) {
     speedDelay = 0;
   } else {
-    speedDelay--;
+    // Prevent unsigned int math going negative
+    if ((int)speedDelay - (int)speedIncrement < 0) {
+      speedDelay = 0;
+    } else {
+      speedDelay -= speedIncrement;
+    }
   }
   Serial.println("Speed Delay: " + (String)speedDelay);
 }
@@ -449,7 +455,7 @@ void decreaseSpeed() {
   if (speedDelay >= maxSpeedDelay) {
     speedDelay = maxSpeedDelay;
   } else {
-    speedDelay++;
+    speedDelay += speedIncrement;
   }
   Serial.println("Speed Delay: " + (String)speedDelay);
 }
