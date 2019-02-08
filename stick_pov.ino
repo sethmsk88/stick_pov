@@ -8,7 +8,8 @@
 
 #define DATA_PIN 11
 #define IR_PIN 5
-#define NUM_LEDS 58
+#define NUM_LEDS 70
+#define MAX_LEDS 255
 
 #define BTN_UP 16718055 // Up (0xFF18E7)
 #define BTN_DOWN 16730805 // Down (0xFF4AB5)
@@ -28,10 +29,12 @@
 #define BTN_8 16754775 // 8 (0xFFA857)
 #define BTN_9 16748655 // 9 (0xFF906F)
 #define BTN_REPEAT 0xFFFFFFFF // This IR value is sent when a button is being held down
+#define MAX_TIME_VALUE 0xFFFFFFFF
 
 // Each favorite saves two bytes worth of info, so each is allocated two addresses
 // First address contains the index of the saved pattern
 // Second address contains the speed delay of the saved pattern
+// TODO: Give these memory addres variables a suffix like "ADDR"
 const uint16_t FAV_0 = 0;
 const uint16_t FAV_1 = 2;
 const uint16_t FAV_2 = 4;
@@ -42,8 +45,9 @@ const uint16_t FAV_6 = 12;
 const uint16_t FAV_7 = 14;
 const uint16_t FAV_8 = 16;
 const uint16_t FAV_9 = 18;
-const uint16_t BRIGHTNESS_SAVED = 20; // Only needs one byte, so one address
-const uint16_t LAST_PATTERN_SAVED = 21; // Only needs one byte, so one address
+const uint16_t NUM_LEDS_SAVED = 20;
+const uint16_t BRIGHTNESS_SAVED = 21; // NOT BEING USED - Only needs one byte, so one address
+const uint16_t LAST_PATTERN_SAVED = 22; // NOT BEING USED - Only needs one byte, so one address
 
 const uint32_t BLACK = 0x000000; // GRB
 const uint32_t RED_MEDIUM = 0x008800; // Medium Red
@@ -60,7 +64,7 @@ const uint32_t INDIGO = 0x004B82;
 const uint8_t defaultBrightness = 160;//105; // Default is set to 50% of the brightness range
 const uint8_t maxBrightness = 230; // 90% of 255
 const uint8_t minBrightness = 20;
-const uint8_t brightnessIncrement = 5;
+const uint8_t brightnessIncrement = 3;
 
 uint32_t patternColumn[NUM_LEDS] = {};
 uint8_t selectedPattern = 0;
@@ -71,17 +75,16 @@ uint16_t pat_i_0 = 0; // an index to track progress of a pattern
 uint16_t pat_i_1 = 0; // another index to track progress of a pattern
 uint8_t speedDelay = 0; // ms of delay between showing columns
 uint8_t maxSpeedDelay = 50;
+boolean shortButtonPress = false;
+boolean longButtonPress = false;
 uint32_t lastButtonPress = 0;
 unsigned long buttonPressStartTime = 0;
-unsigned long longButtonPressTime = 1500; // 1.5 seconds
-boolean longButtonPress = false;
-unsigned long delayBeforeHoldingButton = 500;
-boolean holdingButton = false;
+unsigned long longButtonPressTime = 1000; // 1.5 seconds
 unsigned long lastIRSignalReceivedTime = 0;
-unsigned long noIRSignalDelay = 200; // if there are no IR signals for this amount of time, then we can say there are no active IR signals
-uint8_t favoriteButton_i = 99; // unreachable favorite button index
-boolean buttonActionPerformed = false;
-unsigned long noIRSignalDelay = 300;
+unsigned long noIRSignalDelay = 150; // if there are no IR signals for this amount of time, then we can say there are no active IR signals
+
+unsigned long delayBeforeHoldingButton = 500; // TODO: are we using this?
+boolean holdingButton = false; // TODO: are we using this?
 
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_LEDS, DATA_PIN, NEO_GRB + NEO_KHZ800);
 
@@ -89,9 +92,9 @@ Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_LEDS, DATA_PIN, NEO_GRB + NEO_KH
 IRrecv myReceiver(IR_PIN);
 decode_results IRresults;
 
-void types(uint16_t var) {Serial.println("Type is uint16_t");}
-void types(int32_t var) {Serial.println("Type is int32_t");}
-void types(uint32_t var) {Serial.println("Type is uint32_t");}
+//void types(uint16_t var) {Serial.println("Type is uint16_t");}
+//void types(int32_t var) {Serial.println("Type is int32_t");}
+//void types(uint32_t var) {Serial.println("Type is uint32_t");}
 
 void setup() {
   Serial.begin(9600); // Connect with Serial monitor for testing purposes
@@ -109,6 +112,30 @@ void setup() {
   strip.begin();
   strip.setBrightness(defaultBrightness);
   strip.show();
+}
+
+// NOT USED IN THIS VERSION
+// Update the number of LEDs on the strip
+void incrementLEDCount() {
+  // TODO: Save the new number of LEDs to the EEPROM
+  // TODO: Press * to decrement, and # to increment
+  if (strip.numPixels() >= MAX_LEDS) {
+    strip.updateLength((uint16_t)MAX_LEDS);
+  } else {
+    strip.updateLength(strip.numPixels() + 1);
+    Serial.println(strip.numPixels());
+  }
+}
+
+// NOT USED IN THIS VERSION
+void decrementLEDCount() {
+  // TODO: Save the new number of LEDs to the EEPROM
+  // TODO: Press * to decrement, and # to increment
+  if (strip.numPixels() <= 1) {
+    strip.updateLength(0);
+  } else {
+    strip.updateLength(strip.numPixels() - 1);
+  }
 }
 
 void applySavedSettings() {
@@ -188,137 +215,143 @@ int getFavoriteAddr(int fav_i, int attr_i) {
   }
 }
 
-// Lets check to see if this s
 void checkButtonPress() {
-  uint32_t buttonVal;
+  uint32_t IRVal;
   unsigned long currentTime = millis();
-  uint8_t favoriteButton = 99; // unreachable favorite button index
   
-  // If an IR signal was received
+  // IR signal received
   if (myReceiver.decode(&IRresults)) {
+    IRVal = IRresults.value;
+
+//    Serial.println((String)IRVal);
+
     lastIRSignalReceivedTime = currentTime;
-    buttonVal = IRresults.value;
 
-    // If it's a valid IR signal
-    if (isValidIRValue(buttonVal)) {
-//      Serial.println("Valid IR signal received");
+    // Check for long press
+    // If it's not a repeat code, store the IR code, and start the button press timer
+    if (IRVal != BTN_REPEAT) {
+      lastButtonPress = IRVal;
+      buttonPressStartTime = currentTime; // start button press timer
+
+//      Serial.println("lastButtonPress");
+//      debugButton(lastButtonPress);
+    }
+    else { // It is a repeat code
+//      Serial.print("longButtonPress = ");
+//      longButtonPress ? Serial.println("TRUE") : Serial.println("FALSE");
+//      Serial.println("lastButtonPress = " + (String)lastButtonPress);
+//      Serial.println("currentTime = " + (String)currentTime);
+//      Serial.println("buttonPressStartTime + longButtonPressTime = " + (String)(buttonPressStartTime + longButtonPressTime));
       
-      // If it's a repeat IR signal
-      if (buttonVal == BTN_REPEAT) {
-        
-        // Wait a short amount of time before setting the holdingButton flag to TRUE
-        // If holdingButton flag is not set, and the holding button delay time has passed (i.e. 300ms)
-        if (!holdingButton && (currentTime > buttonPressStartTime + delayBeforeHoldingButton)) {
-//          Serial.println((String)currentTime + " > " + (String)(buttonPressStartTime + delayBeforeHoldingButton));
-//          Serial.println("Setting holdingButton to TRUE");
-          holdingButton = true;
-        }
-        
-        // if holding a button, longButtonPress is NOT yet set, and longButtonPressTime has passed
-        if (holdingButton && !longButtonPress && (currentTime > buttonPressStartTime + longButtonPressTime)) {
-//          Serial.println((String)currentTime + " > " + (String)(buttonPressStartTime + longButtonPressTime));
-//          Serial.println("Setting longButtonPress to TRUE");
-          longButtonPress = true;
-        }
-        buttonVal = lastButtonPress;
-      } else {
-        lastButtonPress = buttonVal;
-        buttonPressStartTime = currentTime; // start long press timer
-//        Serial.println("Setting buttonPressStartTime to " + (String)currentTime);
-
-        if (longButtonPress) {
-          longButtonPress = false;
-//          Serial.println("Setting longButtonPress to FALSE");
-        }
-        if (holdingButton) {
-          holdingButton = false;
-//          Serial.println("Setting holdingButton to FALSE");
-        }
+      // Check to see if long button press
+      if (!longButtonPress && (currentTime >= buttonPressStartTime + longButtonPressTime)) {
+        longButtonPress = true;
+        Serial.println("Long button press ON");
       }
-
-      // While waiting for a long press to register (i.e. 1-2 seconds), do NOT perform the action
-      // of the pressed button, but DO color the stick RED
-      // If it's a repeat IR signal, holdingButton flag is set, and longButtonPress flag is NOT yet set
-      if (IRresults.value == BTN_REPEAT && !longButtonPress) {
-        if (holdingButton) {
-          setAllPixels(RED);
-        } else {
-          // Do nothing
-        }
-      }
-      // Else, we are either repeating, holding, and longPressing; or we are
-      // not repeating, not holding, and not longPressing.
-      // In either case, we perform a normal button action
-      else {
-        switch(buttonVal) {
-          case BTN_UP:
-            if (longButtonPress) {
-              increaseBrightness();
-            } else {
-              increaseSpeed();
-            }
-            break;
-          case BTN_DOWN:
-            if (longButtonPress) {
-              decreaseBrightness();
-            } else {
-              decreaseSpeed();
-            }
-            break;
-          case BTN_LEFT:
-            prevPattern();
-            break;
-          case BTN_RIGHT:
-            nextPattern();
-            break;
-          case BTN_OK:
-            break;
-          case BTN_1:
-            if (longButtonPress) {
-              setFavorite(1);
-            } else {
-              getFavorite(1);
-            }
-            break;
-          case BTN_2:
-            break;
-          case BTN_3:
-            break;
-          case BTN_4:
-            break;
-          case BTN_5:
-            break;
-          case BTN_6:
-            break;
-          case BTN_7:
-            break;
-          case BTN_8:
-            break;
-          case BTN_9:
-            break;
-          case BTN_0:
-            break;
-          case BTN_ASTERISK:
-            break;
-          case BTN_POUND:
-            break;
-        }
-
-        // if we clicked a favorite button
-        
-      }
-      debugButton(buttonVal);
     }
+
+//    Serial.println("buttonPressStartTime = " + (String)buttonPressStartTime);
+
     myReceiver.enableIRIn();  // Restart receiver
-//    clearPixels();
-  } else {
-    if (longButtonPress && (currentTime > lastIRSignalReceivedTime + noIRSignalDelay)){
+  }
+  else { // No IR signal received
+
+//    Serial.println((String)currentTime);
+    
+    // Reset lastButtonPress if coming off of a long press
+//    if (longButtonPress) {
+//      lastButtonPress = 0; // an invalid IR value
+//    }
+//    longButtonPress = false; // reset longButtonPress
+
+      // TESTING
+//      if (longButtonPress) {
+//        Serial.print("longButtonPress = ");
+//        longButtonPress ? Serial.println("TRUE") : Serial.println("FALSE");
+//        Serial.println("lastButtonPress = " + (String)lastButtonPress);
+//        Serial.println("currentTime = " + (String)currentTime);
+//        Serial.println("buttonPressStartTime + longButtonPressTime = " + (String)(buttonPressStartTime + longButtonPressTime));
+//          Serial.println((String)currentTime + " >= " + (String)(lastIRSignalReceivedTime + noIRSignalDelay));
+//          Serial.println("buttonPresStartTime+ longButtonPressTime = " + (String)(buttonPressStartTime + longButtonPressTime));
+//      }
+
+
+    if (longButtonPress && (currentTime >= lastIRSignalReceivedTime + noIRSignalDelay)) {
       longButtonPress = false;
-//      Serial.println("Setting longButtonPress to FALSE");
+      lastButtonPress = 0; // an invalid IR value
+      buttonPressStartTime = MAX_TIME_VALUE / 2; // Set to an unreachable time (divide by two to prevent overflow when doing math with buttonPressStartTime)
+      Serial.println("Long button press OFF");
+    }      
+    // If no signal has been received for noIRSignalDelay
+    // if (!shortButtonPress && (currentTime >= buttonPressStartTime + noIRSignalDelay)) {
+    else if (!shortButtonPress && (currentTime >= lastIRSignalReceivedTime + noIRSignalDelay)) {
+      if (isValidIRValue(lastButtonPress)) {
+        shortButtonPress = true;
+//        Serial.println("Short button press");
+      }
     }
-    if (holdingButton && (currentTime > lastIRSignalReceivedTime + noIRSignalDelay)){
-      holdingButton = false;
-//      Serial.println("Setting holdingButton to FALSE");
+  }
+
+  if (shortButtonPress || longButtonPress) {
+    switch(lastButtonPress) {
+      case BTN_UP:
+        shortButtonPress ? increaseSpeed() : increaseBrightness();
+        break;
+      case BTN_DOWN:
+        shortButtonPress ? decreaseSpeed() : decreaseBrightness();
+        break;
+      case BTN_LEFT:
+        prevPattern();
+        break;
+      case BTN_RIGHT:
+        nextPattern();
+        break;
+      case BTN_OK:
+        break;
+      case BTN_1:
+        shortButtonPress ? getFavorite(1) : setFavorite(1);
+        break;
+      case BTN_2:
+        shortButtonPress ? getFavorite(2) : setFavorite(2);
+        break;
+      case BTN_3:
+        shortButtonPress ? getFavorite(3) : setFavorite(3);
+        break;
+      case BTN_4:
+        shortButtonPress ? getFavorite(4) : setFavorite(4);
+        break;
+      case BTN_5:
+        shortButtonPress ? getFavorite(5) : setFavorite(5);
+        break;
+      case BTN_6:
+        shortButtonPress ? getFavorite(6) : setFavorite(6);
+        break;
+      case BTN_7:
+        shortButtonPress ? getFavorite(7) : setFavorite(7);
+        break;
+      case BTN_8:
+        shortButtonPress ? getFavorite(8) : setFavorite(8);
+        break;
+      case BTN_9:
+        shortButtonPress ? getFavorite(9) : setFavorite(9);
+        break;
+      case BTN_0:
+        shortButtonPress ? getFavorite(0) : setFavorite(0);
+        break;
+      case BTN_ASTERISK:
+//        decrementLEDCount();
+        break;
+      case BTN_POUND:
+//        incrementLEDCount();
+        break;
+    }
+
+//    debugButton(lastButtonPress);
+
+    // Reset shortButtonPress, since it should only perform its action once
+    if (shortButtonPress) {
+      shortButtonPress = false;
+      lastButtonPress = 0; // an invalid IR value
     }
   }
 }
@@ -378,6 +411,7 @@ void increaseBrightness() {
     } else {
       strip.setBrightness(strip.getBrightness() + brightnessIncrement);
     }
+    Serial.println("Brightness = " + (String)strip.getBrightness());
   } else {
     Serial.println("Maximum Brightness");    
   }
@@ -393,6 +427,7 @@ void decreaseBrightness() {
     } else {
       strip.setBrightness(strip.getBrightness() - brightnessIncrement);
     }
+    Serial.println("Brightness = " + (String)strip.getBrightness());
   } else {
     Serial.println("Minimum Brightness");    
   }
