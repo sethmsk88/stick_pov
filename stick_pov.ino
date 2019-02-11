@@ -35,19 +35,19 @@
 // First address contains the index of the saved pattern
 // Second address contains the speed delay of the saved pattern
 // TODO: Give these memory addres variables a suffix like "ADDR"
-const uint16_t FAV_0 = 0;
-const uint16_t FAV_1 = 2;
-const uint16_t FAV_2 = 4;
-const uint16_t FAV_3 = 6;
-const uint16_t FAV_4 = 8;
-const uint16_t FAV_5 = 10;
-const uint16_t FAV_6 = 12;
-const uint16_t FAV_7 = 14;
-const uint16_t FAV_8 = 16;
-const uint16_t FAV_9 = 18;
-const uint16_t NUM_LEDS_SAVED = 20;
-const uint16_t BRIGHTNESS_SAVED = 21; // NOT BEING USED - Only needs one byte, so one address
-const uint16_t LAST_PATTERN_SAVED = 22; // NOT BEING USED - Only needs one byte, so one address
+const uint16_t FAV_0_ADDR = 0;
+const uint16_t FAV_1_ADDR = 2;
+const uint16_t FAV_2_ADDR = 4;
+const uint16_t FAV_3_ADDR = 6;
+const uint16_t FAV_4_ADDR = 8;
+const uint16_t FAV_5_ADDR = 10;
+const uint16_t FAV_6_ADDR = 12;
+const uint16_t FAV_7_ADDR = 14;
+const uint16_t FAV_8_ADDR = 16;
+const uint16_t FAV_9_ADDR = 18;
+const uint16_t NUM_LEDS_SAVED_ADDR = 20;
+const uint16_t BRIGHTNESS_SAVED_ADDR = 21; // NOT BEING USED - Only needs one byte, so one address
+const uint16_t LAST_PATTERN_SAVED_ADDR = 22; // NOT BEING USED - Only needs one byte, so one address
 
 const uint32_t BLACK = 0x000000; // GRB
 const uint32_t RED_MEDIUM = 0x008800; // Medium Red
@@ -184,34 +184,34 @@ void getFavorite(uint8_t i) {
 int getFavoriteAddr(int fav_i, int attr_i) {
   switch (fav_i) {
     case 0:
-      return FAV_0 + attr_i;
+      return FAV_0_ADDR + attr_i;
       break;
     case 1:
-      return FAV_1 + attr_i;
+      return FAV_1_ADDR + attr_i;
       break;
     case 2:
-      return FAV_2 + attr_i;
+      return FAV_2_ADDR + attr_i;
       break;
     case 3:
-      return FAV_3 + attr_i;
+      return FAV_3_ADDR + attr_i;
       break;
     case 4:
-      return FAV_4 + attr_i;
+      return FAV_4_ADDR + attr_i;
       break;
     case 5:
-      return FAV_5 + attr_i;
+      return FAV_5_ADDR + attr_i;
       break;
     case 6:
-      return FAV_6 + attr_i;
+      return FAV_6_ADDR + attr_i;
       break;
     case 7:
-      return FAV_7 + attr_i;
+      return FAV_7_ADDR + attr_i;
       break;
     case 8:
-      return FAV_8 + attr_i;
+      return FAV_8_ADDR + attr_i;
       break;
     case 9:
-      return FAV_9 + attr_i;
+      return FAV_9_ADDR + attr_i;
       break;      
   }
 }
