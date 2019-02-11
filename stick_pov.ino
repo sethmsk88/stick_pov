@@ -395,6 +395,7 @@ void nextPattern() {
     selectedPattern = 0;
   }
   resetIndexesFlags();
+  speedDelay = 0; // reset speed delay
 }
 
 void prevPattern() {
@@ -404,6 +405,7 @@ void prevPattern() {
     selectedPattern = numPatterns - 1;
   }
   resetIndexesFlags();
+  speedDelay = 0; // reset speed delay
 }
 
 // Increase brightness of pixels
