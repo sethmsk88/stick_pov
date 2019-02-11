@@ -67,8 +67,8 @@ const uint8_t minBrightness = 20;
 const uint8_t brightnessIncrement = 2;
 
 uint32_t patternColumn[NUM_LEDS] = {};
-uint8_t selectedPattern = 0;
-uint8_t numPatterns = 6;
+int selectedPattern = 0;
+uint8_t numPatterns = 7;
 boolean patternChanged = true;
 boolean patternComplete = false; // used when a pattern should only show once
 uint16_t pat_i_0 = 0; // an index to track progress of a pattern
@@ -158,6 +158,11 @@ void applySavedSettings() {
 
 // Save a favorite
 void setFavorite(uint8_t i) {
+  if (selectedPattern < 0) {
+    Serial.println("ERROR: Cannot saved a pattern favorite whose index is negative");
+    return;
+  }
+  
   int patternIndex_addr = getFavoriteAddr(i, 0);
   int speedDelay_addr = getFavoriteAddr(i, 1);
   
@@ -308,6 +313,11 @@ void checkButtonPress() {
         nextPattern();
         break;
       case BTN_OK:
+        if (shortButtonPress) {
+          nextPattern();
+        } else {
+          selectedPattern = -1; // pattern index of OFF pattern
+        }
         break;
       case BTN_1:
         shortButtonPress ? getFavorite(1) : setFavorite(1);
@@ -489,10 +499,14 @@ void showColumn() {
 // Show the pattern that is currently selected
 void showPattern() {
   uint32_t colorSet_0[] = {PURPLE, BLUE, GREEN, RED, PINK, ORANGE, YELLOW};
-  uint32_t colorSet_1[] = {GREEN, RED};
-  uint32_t colorSet_2[] = {BLUE, GREEN};
+  uint32_t colorSet_1[] = {RED, GREEN};
+  uint32_t colorSet_2[] = {RED, BLUE};
+  uint32_t colorSet_3[] = {BLUE, GREEN};
   
   switch (selectedPattern) {
+    case -1:
+      patternOff();
+      break;
     case 0:
       pattern0(colorSet_0, (sizeof(colorSet_0) / sizeof(uint32_t)));
       break;
@@ -507,9 +521,11 @@ void showPattern() {
       break;
     case 4:
       pattern0(colorSet_2, (sizeof(colorSet_2) / sizeof(uint32_t)));
-//      pattern2();
       break;
     case 5:
+      pattern0(colorSet_3, (sizeof(colorSet_3) / sizeof(uint32_t)));
+      break;
+    case 6:
       pattern4();
 //      pattern3();
       break;
@@ -517,6 +533,11 @@ void showPattern() {
 
 //  Serial.print("Free memory = ");
 //  Serial.println(freeMemory());
+}
+
+// Set all pixels to black, so very little power is used
+void patternOff() {
+  setAllPixels(BLACK);
 }
 
 // Create vertical columns of the colors listed below
@@ -706,14 +727,6 @@ void pattern4() {
     pat_i_0++;
     showColumn();
     return;
-  }
-}
-
-// Set all pixels to black
-void clearPixels() {
-  for (int i=0; i < strip.numPixels(); i++) {
-    patternColumn[i] = BLACK;
-    showColumn();
   }
 }
 
