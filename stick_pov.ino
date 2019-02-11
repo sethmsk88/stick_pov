@@ -84,9 +84,6 @@ unsigned long longButtonPressTime = 1000; // 1.5 seconds
 unsigned long lastIRSignalReceivedTime = 0;
 unsigned long noIRSignalDelay = 150; // if there are no IR signals for this amount of time, then we can say there are no active IR signals
 
-unsigned long delayBeforeHoldingButton = 500; // TODO: are we using this?
-boolean holdingButton = false; // TODO: are we using this?
-
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_LEDS, DATA_PIN, NEO_GRB + NEO_KHZ800);
 
 // Create a receiver object to listen on pin 2
@@ -532,8 +529,9 @@ void showPattern() {
       break;
     case 6:
       pattern4();
-//      pattern3();
       break;
+    case 7:
+      pattern5(GREEN);
   }
 
 //  Serial.print("Free memory = ");
@@ -735,6 +733,8 @@ void pattern4() {
   }
 }
 
+
+
 void setAllPixels(uint32_t color) {
   for (int i=0; i < strip.numPixels(); i++) {
     patternColumn[i] = color;
@@ -751,19 +751,9 @@ void resetIndexesFlags() {
 }
 
 void loop() {
-  if (holdingButton) {
-    setAllPixels(RED);
-  } else {
-    showPattern();
-  }
+  showPattern();
   
   checkButtonPress();
-
-  // DEBUGGING
-//  if (millis() % 50 == 0) {
-//    Serial.println("Selected Pattern: " + (String)selectedPattern);
-//  }
-
   
 //checkButtonPress();
   
