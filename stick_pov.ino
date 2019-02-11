@@ -64,7 +64,7 @@ const uint32_t INDIGO = 0x004B82;
 const uint8_t defaultBrightness = 160;//105; // Default is set to 50% of the brightness range
 const uint8_t maxBrightness = 230; // 90% of 255
 const uint8_t minBrightness = 20;
-const uint8_t brightnessIncrement = 3;
+const uint8_t brightnessIncrement = 2;
 
 uint32_t patternColumn[NUM_LEDS] = {};
 uint8_t selectedPattern = 0;
@@ -146,8 +146,8 @@ void applySavedSettings() {
   
   // if favorites have not yet been saved, set them to 0
   for (int i=0; i <= 9; i++) {
-    patternIndex_addr = getFavoriteAddr(i, 0);
-    speedDelay_addr = getFavoriteAddr(i, 1);
+    patternIndex_addr = getFavoriteAddr(i, 0); // Load pattern for this favorite
+    speedDelay_addr = getFavoriteAddr(i, 1); // Load speed delay for this favorite
 
     if (EEPROM.read(patternIndex_addr) == unsetVal) {
       EEPROM.update(patternIndex_addr, 0);
@@ -164,9 +164,12 @@ void setFavorite(uint8_t i) {
   EEPROM.update(patternIndex_addr, selectedPattern);
   EEPROM.update(speedDelay_addr, speedDelay);
 
+  setAllPixels(RED); // Set pixels to red so user knows the favorite has been saved
+  delay(500);
+
   Serial.println("Favorite " + (String)i + " saved:");
-  Serial.println("Pattern index = " + (String)selectedPattern);
-  Serial.println("Speed delay = " + (String)speedDelay);
+//  Serial.println("Pattern index = " + (String)selectedPattern);
+//  Serial.println("Speed delay = " + (String)speedDelay);
 }
 
 // Get a saved favorite, and make it active
