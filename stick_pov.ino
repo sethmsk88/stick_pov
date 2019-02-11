@@ -164,12 +164,9 @@ void setFavorite(uint8_t i) {
   EEPROM.update(patternIndex_addr, selectedPattern);
   EEPROM.update(speedDelay_addr, speedDelay);
 
-  setAllPixels(RED); // Set pixels to red so user knows the favorite has been saved
-  delay(500);
+  alertUser();
 
   Serial.println("Favorite " + (String)i + " saved:");
-//  Serial.println("Pattern index = " + (String)selectedPattern);
-//  Serial.println("Speed delay = " + (String)speedDelay);
 }
 
 // Get a saved favorite, and make it active
@@ -414,12 +411,14 @@ void increaseBrightness() {
     if (strip.getBrightness() + brightnessIncrement >= maxBrightness) {
       strip.setBrightness(maxBrightness);
       Serial.println("Maximum Brightness");
+      alertUser();
     } else {
       strip.setBrightness(strip.getBrightness() + brightnessIncrement);
     }
     Serial.println("Brightness = " + (String)strip.getBrightness());
   } else {
     Serial.println("Maximum Brightness");    
+    alertUser();
   }
   strip.show();
 }
@@ -430,12 +429,14 @@ void decreaseBrightness() {
     if (strip.getBrightness() - brightnessIncrement <= minBrightness) {
       strip.setBrightness(minBrightness);
       Serial.println("Minimum Brightness");
+      alertUser();
     } else {
       strip.setBrightness(strip.getBrightness() - brightnessIncrement);
     }
     Serial.println("Brightness = " + (String)strip.getBrightness());
   } else {
     Serial.println("Minimum Brightness");    
+    alertUser();
   }
   strip.show();
 }
@@ -444,10 +445,14 @@ void decreaseBrightness() {
 void increaseSpeed() {
   if (speedDelay <= 0) {
     speedDelay = 0;
+    Serial.println("Maximum speed");
+    alertUser();
   } else {
     // Prevent unsigned int math going negative
     if ((int)speedDelay - (int)speedIncrement < 0) {
       speedDelay = 0;
+      Serial.println("Maximum speed");
+      alertUser();
     } else {
       speedDelay -= speedIncrement;
     }
@@ -459,6 +464,8 @@ void increaseSpeed() {
 void decreaseSpeed() {
   if (speedDelay >= maxSpeedDelay) {
     speedDelay = maxSpeedDelay;
+    Serial.println("Minimum speed");
+    alertUser();
   } else {
     speedDelay += speedIncrement;
   }
@@ -841,6 +848,12 @@ uint32_t Wheel(byte WheelPos) {
   }
   WheelPos -= 170;
   return strip.Color(WheelPos * 3, 255 - WheelPos * 3, 0);
+}
+
+// Alert user by flashing stick red
+void alertUser() {
+  setAllPixels(RED);
+  delay(500);
 }
 
 void debugButton(uint32_t buttonVal) {
