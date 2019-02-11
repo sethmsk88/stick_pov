@@ -61,7 +61,7 @@ const uint32_t YELLOW = 0xFFFF00;
 const uint32_t VIOLET = 0x0094D3;
 const uint32_t INDIGO = 0x004B82;
 
-const uint8_t defaultBrightness = 160;//105; // Default is set to 50% of the brightness range
+uint8_t defaultBrightness = 160;//105; // Default is set to 50% of the brightness range
 const uint8_t maxBrightness = 230; // 90% of 255
 const uint8_t minBrightness = 20;
 const uint8_t brightnessIncrement = 2;
@@ -104,11 +104,6 @@ void setup() {
   Serial.println("Ready to receive IR signals");
 
   applySavedSettings();
-
-//  Serial.print("Saved at 0: ");
-//  Serial.println(EEPROM.read(2));
-//  Serial.print("Saved at 1: ");
-//  Serial.println(EEPROM.read(3));
   
   strip.begin();
   strip.setBrightness(defaultBrightness);
@@ -154,6 +149,9 @@ void applySavedSettings() {
       EEPROM.update(speedDelay_addr, 0);
     }
   }
+
+  // Apply saved brightness setting
+  defaultBrightness = EEPROM.read(BRIGHTNESS_SAVED_ADDR);
 }
 
 // Save a favorite
@@ -219,6 +217,10 @@ int getFavoriteAddr(int fav_i, int attr_i) {
       return FAV_9_ADDR + attr_i;
       break;      
   }
+}
+
+void saveBrightness() {
+  EEPROM.update(BRIGHTNESS_SAVED_ADDR, strip.getBrightness());
 }
 
 void checkButtonPress() {
@@ -313,10 +315,11 @@ void checkButtonPress() {
         nextPattern();
         break;
       case BTN_OK:
+        // Next pattern if short press, otherwise set to OFF pattern
         if (shortButtonPress) {
           nextPattern();
         } else {
-          selectedPattern = -1; // pattern index of OFF pattern
+          selectedPattern = -1;
         }
         break;
       case BTN_1:
@@ -403,6 +406,7 @@ void nextPattern() {
   }
   resetIndexesFlags();
   speedDelay = 0; // reset speed delay
+  saveBrightness();
 }
 
 void prevPattern() {
@@ -413,6 +417,7 @@ void prevPattern() {
   }
   resetIndexesFlags();
   speedDelay = 0; // reset speed delay
+  saveBrightness();
 }
 
 // Increase brightness of pixels
