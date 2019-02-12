@@ -68,13 +68,13 @@ const uint8_t brightnessIncrement = 2;
 
 uint32_t patternColumn[NUM_LEDS] = {};
 int selectedPattern = 0;
-uint8_t numPatterns = 7;
+uint8_t numPatterns = 10;
 boolean patternChanged = true;
 boolean patternComplete = false; // used when a pattern should only show once
 uint16_t pat_i_0 = 0; // an index to track progress of a pattern
 uint16_t pat_i_1 = 0; // another index to track progress of a pattern
 uint8_t speedDelay = 0; // ms of delay between showing columns
-uint8_t maxSpeedDelay = 31;
+uint8_t maxSpeedDelay = 45;
 uint8_t speedIncrement = 2;
 boolean shortButtonPress = false;
 boolean longButtonPress = false;
@@ -494,8 +494,22 @@ void showColumn() {
   if (myReceiver.isIdle()) {
     strip.show();
   }
+
+//  debugPatternColumn();
   
   delay(speedDelay); // tiny bit of flicker
+}
+
+void debugPatternColumn() {
+  String litPixels = "";
+  for (int i=0; i < strip.numPixels(); i++) {
+    if (patternColumn[i] == BLACK) {
+      litPixels += "0";
+    } else {
+      litPixels += "1";
+    }
+  }
+  Serial.println(litPixels);
 }
 
 // Show the pattern that is currently selected
@@ -531,7 +545,14 @@ void showPattern() {
       pattern4();
       break;
     case 7:
+      pattern5(RED);
+      break;
+    case 8:
       pattern5(GREEN);
+      break;
+    case 9:
+      pattern5(BLUE);
+      break;
   }
 
 //  Serial.print("Free memory = ");
@@ -733,7 +754,33 @@ void pattern4() {
   }
 }
 
+void pattern5(uint32_t color) {
+  // Reset indexes when needed
+  if (pat_i_0 == 0) {
+    pat_i_0 = strip.numPixels() - 1;
+  }
+  if (pat_i_1 == pat_i_0) {
+    pat_i_0--;
+    pat_i_1 = 0;
+  }
 
+  // Make a single pixel travel down the stick
+  for (int travel_i = 0; travel_i < pat_i_0; travel_i++) {
+    if (travel_i == pat_i_1) {
+      patternColumn[travel_i] = color;
+    } else {
+      patternColumn[travel_i] = BLACK;
+    }
+  }
+
+  // Turn on the lit pixels
+  for (int lit_i = pat_i_0; lit_i < strip.numPixels(); lit_i++) {
+    patternColumn[lit_i] = color;
+  }
+  
+  showColumn();
+  pat_i_1++;
+}
 
 void setAllPixels(uint32_t color) {
   for (int i=0; i < strip.numPixels(); i++) {
