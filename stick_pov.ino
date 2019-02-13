@@ -67,7 +67,7 @@ const uint8_t minBrightness = 20;
 const uint8_t brightnessIncrement = 2;
 
 uint32_t patternColumn[NUM_LEDS] = {};
-int selectedPattern = 0;
+int selectedPattern = 8;
 uint8_t numPatterns = 10;
 boolean patternChanged = true;
 boolean patternComplete = false; // used when a pattern should only show once
@@ -83,6 +83,7 @@ unsigned long buttonPressStartTime = 0;
 unsigned long longButtonPressTime = 1000; // 1.5 seconds
 unsigned long lastIRSignalReceivedTime = 0;
 unsigned long noIRSignalDelay = 150; // if there are no IR signals for this amount of time, then we can say there are no active IR signals
+int patDirection = 0;
 
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_LEDS, DATA_PIN, NEO_GRB + NEO_KHZ800);
 
@@ -176,6 +177,8 @@ void getFavorite(uint8_t i) {
   
   selectedPattern = EEPROM.read(patternIndex_addr);
   speedDelay = EEPROM.read(speedDelay_addr);
+  
+  resetIndexesFlags();
 }
 
 // Get address of favorite in EEPROM
@@ -353,6 +356,9 @@ void checkButtonPress() {
 //        decrementLEDCount();
         break;
       case BTN_POUND:
+        if (shortButtonPress) {
+          changeDirection();
+        }
 //        incrementLEDCount();
         break;
     }
@@ -484,6 +490,16 @@ void decreaseSpeed() {
   Serial.println("Speed Delay: " + (String)speedDelay);
 }
 
+// Change direction of pattern
+void changeDirection() {
+  if (patDirection == 0) {
+    patDirection = 1;
+  } else {
+    patDirection = 0;
+  }
+  resetIndexesFlags();
+}
+
 // Set the all pixels on the strip to the values in the patternColumn array
 // and then show the pixels
 void showColumn() {
@@ -527,7 +543,7 @@ void showPattern() {
       pattern0(colorSet_0, (sizeof(colorSet_0) / sizeof(uint32_t)));
       break;
     case 1:
-      pattern1(RED, 20);
+      pattern1(RED, 10);
       break;
     case 2:
       pattern1(GREEN, 10);
@@ -755,31 +771,64 @@ void pattern4() {
 }
 
 void pattern5(uint32_t color) {
-  // Reset indexes when needed
-  if (pat_i_0 == 0) {
-    pat_i_0 = strip.numPixels() - 1;
-  }
-  if (pat_i_1 == pat_i_0) {
-    pat_i_0--;
-    pat_i_1 = 0;
-  }
-
-  // Make a single pixel travel down the stick
-  for (int travel_i = 0; travel_i < pat_i_0; travel_i++) {
-    if (travel_i == pat_i_1) {
-      patternColumn[travel_i] = color;
-    } else {
-      patternColumn[travel_i] = BLACK;
+  if (patDirection == 0) {
+    // Reset indexes when needed
+    if (pat_i_0 == 0) {
+      pat_i_0 = strip.numPixels() - 1;
     }
-  }
-
-  // Turn on the lit pixels
-  for (int lit_i = pat_i_0; lit_i < strip.numPixels(); lit_i++) {
-    patternColumn[lit_i] = color;
-  }
+    if (pat_i_1 == pat_i_0) {
+      pat_i_0--;
+      pat_i_1 = 0;
+    }
   
-  showColumn();
-  pat_i_1++;
+    // Make a single pixel travel down the stick
+    for (int travel_i = 0; travel_i < pat_i_0; travel_i++) {
+      if (travel_i == pat_i_1) {
+        patternColumn[travel_i] = color;
+      } else {
+        patternColumn[travel_i] = BLACK;
+      }
+    }
+  
+    // Turn on the lit pixels
+    for (int lit_i = pat_i_0; lit_i < strip.numPixels(); lit_i++) {
+      patternColumn[lit_i] = color;
+    }
+    
+    showColumn();
+    pat_i_1++;
+  } else {
+    // Reset indexes when needed
+    if (patternChanged) {
+      // Initialize this index when this when the pattern is first changed
+      pat_i_1 = strip.numPixels() - 1;
+      patternChanged = false;
+    }
+    if (pat_i_0 == strip.numPixels() - 1) {
+      pat_i_0 = 0; // reset to 1 instead of 0 because of base case problem
+    }
+    if (pat_i_1 == pat_i_0) {
+      pat_i_0++;
+      pat_i_1 = strip.numPixels() - 1;
+    }
+  
+    // Make a single pixel travel down the stick
+    for (int travel_i = strip.numPixels() - 1; travel_i > pat_i_0; travel_i--) {
+      if (travel_i == pat_i_1) {
+        patternColumn[travel_i] = color;
+      } else {
+        patternColumn[travel_i] = BLACK;
+      }
+    }
+  
+    // Turn on the lit pixels
+    for (int lit_i = pat_i_0; lit_i >= 0; lit_i--) {
+      patternColumn[lit_i] = color;
+    }
+    
+    showColumn();
+    pat_i_1--;
+  }
 }
 
 void setAllPixels(uint32_t color) {
