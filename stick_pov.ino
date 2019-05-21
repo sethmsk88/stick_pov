@@ -50,32 +50,34 @@ const uint16_t BRIGHTNESS_SAVED_ADDR = 21; // NOT BEING USED - Only needs one by
 const uint16_t LAST_PATTERN_SAVED_ADDR = 22; // NOT BEING USED - Only needs one byte, so one address
 
 const uint32_t BLACK = 0x000000; // GRB
-const uint32_t RED_MEDIUM = 0x008800; // Medium Red
 const uint32_t PURPLE = 0x008080;
 const uint32_t BLUE = 0x0000FF;
 const uint32_t GREEN = 0x800000;
 const uint32_t RED = 0x00FF00;
 const uint32_t PINK = 0xC0FFCB;
-const uint32_t ORANGE = 0xA5FF00;
+const uint32_t ORANGE = 0x90FF00;
 const uint32_t YELLOW = 0xFFFF00;
 const uint32_t VIOLET = 0x0094D3;
 const uint32_t INDIGO = 0x004B82;
+const uint32_t ATTRACTIVE_PURPLE = 0x004d99;
+const uint32_t CYAN = 0x9900ff;
 
 uint8_t defaultBrightness = 160;//105; // Default is set to 50% of the brightness range
 const uint8_t maxBrightness = 230; // 90% of 255
 const uint8_t minBrightness = 20;
-const uint8_t brightnessIncrement = 2;
+const uint8_t brightnessIncrement = 1;
 
 uint32_t patternColumn[NUM_LEDS] = {};
-int selectedPattern = 8;
-uint8_t numPatterns = 10;
+int selectedPattern = 0;
+uint8_t numPatterns = 31;
 boolean patternChanged = true;
 boolean patternComplete = false; // used when a pattern should only show once
 uint16_t pat_i_0 = 0; // an index to track progress of a pattern
 uint16_t pat_i_1 = 0; // another index to track progress of a pattern
+uint16_t pat_i_2 = 0; // another index to track progress of a pattern
 uint8_t speedDelay = 0; // ms of delay between showing columns
 uint8_t maxSpeedDelay = 45;
-uint8_t speedIncrement = 2;
+uint8_t speedIncrement = 1;
 boolean shortButtonPress = false;
 boolean longButtonPress = false;
 uint32_t lastButtonPress = 0;
@@ -84,6 +86,8 @@ unsigned long longButtonPressTime = 1000; // 1.5 seconds
 unsigned long lastIRSignalReceivedTime = 0;
 unsigned long noIRSignalDelay = 150; // if there are no IR signals for this amount of time, then we can say there are no active IR signals
 int patDirection = 0;
+boolean patternReverse = false;
+uint8_t tempSavedBrightness = 0; // used for patterns that alter brightness (must init to 0)
 
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_LEDS, DATA_PIN, NEO_GRB + NEO_KHZ800);
 
@@ -106,6 +110,8 @@ void setup() {
   strip.begin();
   strip.setBrightness(defaultBrightness);
   strip.show();
+
+  randomSeed(analogRead(0));
 }
 
 // NOT USED IN THIS VERSION
@@ -408,7 +414,7 @@ void nextPattern() {
     selectedPattern = 0;
   }
   resetIndexesFlags();
-  speedDelay = 0; // reset speed delay
+//  speedDelay = 0; // reset speed delay
   saveBrightness();
 }
 
@@ -419,7 +425,7 @@ void prevPattern() {
     selectedPattern = numPatterns - 1;
   }
   resetIndexesFlags();
-  speedDelay = 0; // reset speed delay
+//  speedDelay = 0; // reset speed delay
   saveBrightness();
 }
 
@@ -540,34 +546,97 @@ void showPattern() {
       patternOff();
       break;
     case 0:
-      pattern0(colorSet_0, (sizeof(colorSet_0) / sizeof(uint32_t)));
-      break;
-    case 1:
-      pattern1(RED, 10);
-      break;
-    case 2:
-      pattern1(GREEN, 10);
-      break;
-    case 3:
-      pattern0(colorSet_1, (sizeof(colorSet_1) / sizeof(uint32_t)));
-      break;
-    case 4:
-      pattern0(colorSet_2, (sizeof(colorSet_2) / sizeof(uint32_t)));
-      break;
-    case 5:
-      pattern0(colorSet_3, (sizeof(colorSet_3) / sizeof(uint32_t)));
-      break;
-    case 6:
       pattern4();
       break;
+    case 1:
+      pattern0(colorSet_0, (sizeof(colorSet_0) / sizeof(uint32_t)));
+      break;
+    case 2:
+      pattern1(RED, 5);
+      break;
+    case 3:
+      pattern1(GREEN, 5);
+      break;
+    case 4:
+      pattern1(BLUE, 5);
+      break;
+    case 5:
+      pattern1(ATTRACTIVE_PURPLE, 5);
+      break;
+    case 6:
+      pattern1(CYAN, 5);
+      break;
     case 7:
-      pattern5(RED);
+      pattern1(YELLOW, 5);
       break;
     case 8:
-      pattern5(GREEN);
+      pattern0(colorSet_1, (sizeof(colorSet_1) / sizeof(uint32_t)));
       break;
     case 9:
+      pattern0(colorSet_2, (sizeof(colorSet_2) / sizeof(uint32_t)));
+      break;
+    case 10:
+      pattern0(colorSet_3, (sizeof(colorSet_3) / sizeof(uint32_t)));
+      break;
+    case 11:
+      pattern5(RED);
+      break;
+    case 12:
+      pattern5(GREEN);
+      break;
+    case 13:
       pattern5(BLUE);
+      break;
+    case 14:
+      pattern5(ATTRACTIVE_PURPLE);
+      break;
+    case 15:
+      pattern5(CYAN);
+      break;
+    case 16:
+      pattern5(YELLOW);
+      break;
+    case 17:
+      pattern6(ORANGE);
+      break;
+    case 18:
+      pattern7(ORANGE);
+      break;
+    case 19:
+      pattern8(RED);
+      break;
+    case 20:
+      pattern8(GREEN);
+      break;
+    case 21:
+      pattern8(BLUE);
+      break;
+    case 22:
+      pattern8(ATTRACTIVE_PURPLE);
+      break;
+    case 23:
+      pattern8(CYAN);
+      break;
+    case 24:
+      pattern8(YELLOW);
+      break;
+    case 25:
+      pattern9(RED);
+      break;
+    case 26:
+      pattern9(GREEN);
+      break;
+    case 27:
+      pattern9(BLUE);
+      break;
+    case 28:
+      pattern9(ATTRACTIVE_PURPLE);
+      break;
+    case 29:
+      pattern9(CYAN);
+      break;
+    case 30:
+      pattern9(YELLOW);
       break;
   }
 
@@ -594,22 +663,28 @@ void pattern0(uint32_t patternColors[], int numPatternColors) {
 
 // Color Wipe
 void pattern1(uint32_t color, uint8_t msDelay) {  
+  // When we first enter the pattern, turn the stick black
+  if (patternChanged) {
+    setAllPixels(BLACK);
+  }
+  
   // If a pattern animation should only run once (e.g. Color Wipe)
   if (patternChanged || !patternComplete) {
     patternChanged = false;
-    
+
     // fill up to the pattern index
     for (uint8_t i=0; i <= pat_i_0; i++) {
       patternColumn[i] = color;
     }
     pat_i_0++; // increase pattern index
 
+    // Check to see if pattern is complete
+    if (pat_i_0 == strip.numPixels()) {
+      patternComplete = true;
+    }
+    
     showColumn();
     delay(msDelay);    
-
-    // Check to see if pattern is complete
-    if (pat_i_0 == strip.numPixels())
-      patternComplete = true;
   }
 }
 
@@ -831,6 +906,219 @@ void pattern5(uint32_t color) {
   }
 }
 
+void pattern6(uint32_t color) {
+  // select a new random amount number to build up to
+  if (patternChanged || patternComplete) {
+    pat_i_0 = random(5, NUM_LEDS);
+    patternChanged = false;
+    patternComplete = false;
+    patternReverse = false;
+  }
+
+  // Light the pixels one at a time so it looks like they are building up
+  // Turn on the lit pixels
+  for (int i = 0; i < strip.numPixels(); i++) {
+    if (i <= pat_i_1) {
+      patternColumn[i] = color;
+    } else {
+      patternColumn[i] = BLACK;
+    }
+  }
+  showColumn();
+  
+  if (!patternReverse) {
+    pat_i_1++;
+  } else {
+    pat_i_1--;
+  }
+
+  if (pat_i_1 == pat_i_0) {
+    pat_i_1 = 0;
+    patternComplete = true;
+  }
+
+  if (pat_i_1 == pat_i_0) {
+    if (!patternReverse) {
+      pat_i_0 = 0;
+      patternReverse = true;
+    } else {
+      pat_i_1 = 0;
+      patternComplete = true;
+    }
+  }
+}
+
+void pattern7(uint32_t color) {
+  int minPixel_i = 4;
+  int patIncrement = 2;
+  
+  // select a new random amount number to build up to
+  if (patternChanged || patternComplete) {
+    pat_i_0 = strip.numPixels();
+    pat_i_1 = minPixel_i;
+    patternChanged = false;
+    patternComplete = false;
+    patternReverse = false;
+  }
+
+  // Light the pixels one at a time so it looks like they are building up
+  // Turn on the lit pixels
+  for (int i = 0; i < strip.numPixels(); i += patIncrement) {
+    if (i <= pat_i_1) {
+      patternColumn[i] = color;
+
+      if (i+1 < strip.numPixels()) {
+        patternColumn[i+1] = color;
+      }
+    } else {
+      patternColumn[i] = BLACK;
+      if (i+1 < strip.numPixels()) {
+        patternColumn[i+1] = BLACK;
+      }
+    }
+  }
+  showColumn();
+  
+  if (!patternReverse) {
+    if (pat_i_1 + patIncrement < strip.numPixels()) {
+      pat_i_1 += patIncrement;
+    } else {
+      pat_i_1 = strip.numPixels();
+    }
+  } else {
+    if (pat_i_1 - patIncrement >= 0) {
+      pat_i_1 -= patIncrement;
+    } else {
+      pat_i_1 = 0;
+    }
+  }
+
+  if (pat_i_1 == pat_i_0) {
+    if (!patternReverse) {
+      pat_i_0 = 0;
+      patternReverse = true;
+    } else {
+      pat_i_1 = minPixel_i;
+      patternComplete = true;
+    }
+  }
+}
+
+// Pulsating glow effect
+void pattern8(uint32_t color) {
+  // NOTE: In order to change the top-end brightness of this pattern, user
+  // must switch to a different pattern, change the brightness, and then switch back.
+
+  uint8_t minPatternBrightness = 10;
+  int numRepeats = 8;
+  
+  // Loop the brightness from minBrightness up to the brightness
+  // setting the user has set.
+  // Initialize brightness
+  if (patternChanged) {
+    pat_i_0 = strip.getBrightness(); // pat_i_0 is the max brightness
+    pat_i_1 = pat_i_0;
+    patternChanged = false;
+    tempSavedBrightness = pat_i_0;
+  }
+
+  // Light the pixels
+  for (int i = 0; i < strip.numPixels(); i++) {
+    patternColumn[i] = color;
+  }
+  strip.setBrightness(pat_i_1);
+  showColumn();
+
+  // Oscillate brightness from min to max
+  if (!patternReverse) {
+    if (pat_i_1 > minPatternBrightness) {
+      // Repeat brightness levels that are the lower half of the pulsing range so it slows down
+      if ((pat_i_1 < pat_i_0 / 2) && (pat_i_1 >= pat_i_0 / 3)) {
+        if (pat_i_2 == (numRepeats / 2) - 1) {
+          pat_i_1--;
+          pat_i_2 = 0;
+        } else {
+          pat_i_2++;
+        }
+      } else if (pat_i_1 < pat_i_0 / 3) {
+        if (pat_i_2 == numRepeats - 1) {
+          pat_i_1--;
+          pat_i_2 = 0;
+        } else {
+          pat_i_2++;
+        }
+      } else {
+        pat_i_1--;
+      }
+    } else {
+      patternReverse = true;
+    }
+  } else {
+    if (pat_i_1 < pat_i_0) { // pat_i_0 is max brightness for this pattern
+      // Repeat brightness levels that are the lower half of the pulsing range
+      if ((pat_i_1 < pat_i_0 / 2) && (pat_i_1 >= pat_i_0 / 3)) {
+        if (pat_i_2 == (numRepeats / 2) - 1) {
+          pat_i_1++;
+          pat_i_2 = 0;
+        } else {
+          pat_i_2++;
+        }
+      } else if (pat_i_1 < pat_i_0 / 3) {
+        if (pat_i_2 == numRepeats - 1) {
+          pat_i_1++;
+          pat_i_2 = 0;
+        } else {
+          pat_i_2++;
+        }
+      } else {
+        pat_i_1++;
+      }
+    } else {
+      patternReverse = false;
+    }
+  }
+}
+
+// Twinkle effect
+void pattern9(uint32_t color) {
+  // group the lights into groups of 15
+  int groupSize = 15;
+  int pixel_i = 0;
+  int group_i = 0;
+  int rand_i_0,
+    rand_i_1,
+    rand_i_2;
+  int slowDownCycles = 5;
+
+  if (pat_i_0 < slowDownCycles) {
+    pat_i_0++;
+    showColumn();
+    return;
+  } else {
+    pat_i_0 = 0;
+  }
+
+  // Light 3 random pixels out of every group of 15
+  while (pixel_i < strip.numPixels()) {
+    // Get the indexes of the randomly chosen pixels in the group
+    if (pixel_i % groupSize == 0) {
+      rand_i_0 = random(pixel_i, pixel_i + groupSize);
+      rand_i_1 = random(pixel_i, pixel_i + groupSize);
+      rand_i_2 = random(pixel_i, pixel_i + groupSize);
+      
+      group_i++;
+    }
+
+    if (pixel_i == rand_i_0 || pixel_i == rand_i_1 || pixel_i == rand_i_2) {
+      patternColumn[pixel_i] = color;
+    } else {
+      patternColumn[pixel_i] = BLACK;
+    }
+    pixel_i++;
+  }
+  showColumn();
+}
+
 void setAllPixels(uint32_t color) {
   for (int i=0; i < strip.numPixels(); i++) {
     patternColumn[i] = color;
@@ -842,16 +1130,20 @@ void setAllPixels(uint32_t color) {
 void resetIndexesFlags() {
   pat_i_0 = 0;
   pat_i_1 = 0;
+  pat_i_2 = 0;
   patternChanged = true;
   patternComplete = false;
+
+  // Set brightness back to what it was if it was changed for a pattern
+  if (tempSavedBrightness > 0) {
+    strip.setBrightness(tempSavedBrightness);
+    tempSavedBrightness = 0;
+  }
 }
 
 void loop() {
   showPattern();
-  
   checkButtonPress();
-  
-//checkButtonPress();
   
   // Some example procedures showing how to display to the pixels:
 //  colorWipe(strip.Color(25, 0, 0), 20); // Red
