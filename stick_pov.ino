@@ -309,16 +309,16 @@ void checkButtonPress() {
   if (shortButtonPress || longButtonPress) {
     switch(lastButtonPress) {
       case BTN_UP:
-        shortButtonPress ? increaseSpeed() : increaseBrightness();
+        nextPattern();
         break;
       case BTN_DOWN:
-        shortButtonPress ? decreaseSpeed() : decreaseBrightness();
-        break;
-      case BTN_LEFT:
         prevPattern();
         break;
+      case BTN_LEFT:
+        shortButtonPress ? decreaseSpeed() : decreaseBrightness();
+        break;
       case BTN_RIGHT:
-        nextPattern();
+        shortButtonPress ? increaseSpeed() : increaseBrightness();
         break;
       case BTN_OK:
         // Next pattern if short press, otherwise set to OFF pattern
