@@ -315,10 +315,10 @@ void checkButtonPress() {
         prevPattern();
         break;
       case BTN_LEFT:
-        shortButtonPress ? decreaseSpeed() : decreaseBrightness();
+        decreaseSpeed();
         break;
       case BTN_RIGHT:
-        shortButtonPress ? increaseSpeed() : increaseBrightness();
+        increaseSpeed();
         break;
       case BTN_OK:
         // Next pattern if short press, otherwise set to OFF pattern
@@ -360,11 +360,15 @@ void checkButtonPress() {
         break;
       case BTN_ASTERISK:
 //        decrementLEDCount();
+        decreaseBrightness();
         break;
       case BTN_POUND:
+        increaseBrightness();
+      /*
         if (shortButtonPress) {
           changeDirection();
         }
+      */
 //        incrementLEDCount();
         break;
     }
