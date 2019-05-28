@@ -6,12 +6,14 @@
 //#include <MemoryFree.h>
 #include <EEPROM.h>
 
+#include "RemoteControl.cpp"
+
 #define DATA_PIN 11
 #define IR_PIN 5
 #define NUM_LEDS 70
 #define MAX_LEDS 255
 
-#define BTN_UP 16718055 // Up (0xFF18E7)
+/*#define BTN_UP 16718055 // Up (0xFF18E7)
 #define BTN_DOWN 16730805 // Down (0xFF4AB5)
 #define BTN_LEFT 16716015 // Left (0xFF10EF)
 #define BTN_RIGHT 16734885 // Right (0xFF5AA5)
@@ -29,6 +31,7 @@
 #define BTN_8 16754775 // 8 (0xFFA857)
 #define BTN_9 16748655 // 9 (0xFF906F)
 #define BTN_REPEAT 0xFFFFFFFF // This IR value is sent when a button is being held down
+*/
 #define MAX_TIME_VALUE 0xFFFFFFFF
 
 // Each favorite saves two bytes worth of info, so each is allocated two addresses
@@ -237,13 +240,13 @@ void checkButtonPress() {
   if (myReceiver.decode(&IRresults)) {
     IRVal = IRresults.value;
 
-//    Serial.println((String)IRVal);
+    Serial.println((String)IRVal);
 
     lastIRSignalReceivedTime = currentTime;
 
     // Check for long press
     // If it's not a repeat code, store the IR code, and start the button press timer
-    if (IRVal != BTN_REPEAT) {
+    if (IRVal != RemoteControl::BTN_REPEAT) {
       lastButtonPress = IRVal;
       buttonPressStartTime = currentTime; // start button press timer
 
@@ -308,19 +311,19 @@ void checkButtonPress() {
 
   if (shortButtonPress || longButtonPress) {
     switch(lastButtonPress) {
-      case BTN_UP:
+      case RemoteControl::BTN_UP:
         nextPattern();
         break;
-      case BTN_DOWN:
+      case RemoteControl::BTN_DOWN:
         prevPattern();
         break;
-      case BTN_LEFT:
+      case RemoteControl::BTN_LEFT:
         decreaseSpeed();
         break;
-      case BTN_RIGHT:
+      case RemoteControl::BTN_RIGHT:
         increaseSpeed();
         break;
-      case BTN_OK:
+      case RemoteControl::BTN_OK:
         // Next pattern if short press, otherwise set to OFF pattern
         if (shortButtonPress) {
           nextPattern();
@@ -328,41 +331,41 @@ void checkButtonPress() {
           selectedPattern = -1;
         }
         break;
-      case BTN_1:
+      case RemoteControl::BTN_1:
         shortButtonPress ? getFavorite(1) : setFavorite(1);
         break;
-      case BTN_2:
+      case RemoteControl::BTN_2:
         shortButtonPress ? getFavorite(2) : setFavorite(2);
         break;
-      case BTN_3:
+      case RemoteControl::BTN_3:
         shortButtonPress ? getFavorite(3) : setFavorite(3);
         break;
-      case BTN_4:
+      case RemoteControl::BTN_4:
         shortButtonPress ? getFavorite(4) : setFavorite(4);
         break;
-      case BTN_5:
+      case RemoteControl::BTN_5:
         shortButtonPress ? getFavorite(5) : setFavorite(5);
         break;
-      case BTN_6:
+      case RemoteControl::BTN_6:
         shortButtonPress ? getFavorite(6) : setFavorite(6);
         break;
-      case BTN_7:
+      case RemoteControl::BTN_7:
         shortButtonPress ? getFavorite(7) : setFavorite(7);
         break;
-      case BTN_8:
+      case RemoteControl::BTN_8:
         shortButtonPress ? getFavorite(8) : setFavorite(8);
         break;
-      case BTN_9:
+      case RemoteControl::BTN_9:
         shortButtonPress ? getFavorite(9) : setFavorite(9);
         break;
-      case BTN_0:
+      case RemoteControl::BTN_0:
         shortButtonPress ? getFavorite(0) : setFavorite(0);
         break;
-      case BTN_ASTERISK:
+      case RemoteControl::BTN_ASTERISK:
 //        decrementLEDCount();
         decreaseBrightness();
         break;
-      case BTN_POUND:
+      case RemoteControl::BTN_POUND:
         increaseBrightness();
       /*
         if (shortButtonPress) {
@@ -386,24 +389,24 @@ void checkButtonPress() {
 // Check to see if IR signal is a valid button code
 boolean isValidIRValue(uint32_t irValue) {
   switch (irValue) {
-    case BTN_UP:
-    case BTN_DOWN:
-    case BTN_LEFT:
-    case BTN_RIGHT:
-    case BTN_OK:
-    case BTN_1:
-    case BTN_2:
-    case BTN_3:
-    case BTN_4:
-    case BTN_5:
-    case BTN_6:
-    case BTN_7:
-    case BTN_8:
-    case BTN_9:
-    case BTN_0:
-    case BTN_ASTERISK:
-    case BTN_POUND:
-    case BTN_REPEAT:
+    case RemoteControl::BTN_UP:
+    case RemoteControl::BTN_DOWN:
+    case RemoteControl::BTN_LEFT:
+    case RemoteControl::BTN_RIGHT:
+    case RemoteControl::BTN_OK:
+    case RemoteControl::BTN_1:
+    case RemoteControl::BTN_2:
+    case RemoteControl::BTN_3:
+    case RemoteControl::BTN_4:
+    case RemoteControl::BTN_5:
+    case RemoteControl::BTN_6:
+    case RemoteControl::BTN_7:
+    case RemoteControl::BTN_8:
+    case RemoteControl::BTN_9:
+    case RemoteControl::BTN_0:
+    case RemoteControl::BTN_ASTERISK:
+    case RemoteControl::BTN_POUND:
+    case RemoteControl::BTN_REPEAT:
 //      Serial.println("Valid IR value");
       return true;
   }
@@ -418,7 +421,6 @@ void nextPattern() {
     selectedPattern = 0;
   }
   resetIndexesFlags();
-//  speedDelay = 0; // reset speed delay
   saveBrightness();
 }
 
@@ -429,7 +431,6 @@ void prevPattern() {
     selectedPattern = numPatterns - 1;
   }
   resetIndexesFlags();
-//  speedDelay = 0; // reset speed delay
   saveBrightness();
 }
 
@@ -1258,55 +1259,55 @@ void alertUser() {
 
 void debugButton(uint32_t buttonVal) {
   switch(buttonVal) {
-    case BTN_UP:
+    case RemoteControl::BTN_UP:
       Serial.print("Button [UP]");
       break;
-    case BTN_DOWN:
+    case RemoteControl::BTN_DOWN:
       Serial.print("Button [DOWN]");
       break;
-    case BTN_LEFT:
+    case RemoteControl::BTN_LEFT:
       Serial.print("Button [LEFT]");
       break;
-    case BTN_RIGHT:
+    case RemoteControl::BTN_RIGHT:
       Serial.print("Button [RIGHT]");
       break;
-    case BTN_OK:
+    case RemoteControl::BTN_OK:
       Serial.print("Button [OK]");
       break;
-    case BTN_1:
+    case RemoteControl::BTN_1:
       Serial.print("Button [1]");
       break;
-    case BTN_2:
+    case RemoteControl::BTN_2:
       Serial.print("Button [2]");
       break;
-    case BTN_3:
+    case RemoteControl::BTN_3:
       Serial.print("Button [3]");
       break;
-    case BTN_4:
+    case RemoteControl::BTN_4:
       Serial.print("Button [4]");
       break;
-    case BTN_5:
+    case RemoteControl::BTN_5:
       Serial.print("Button [5]");
       break;
-    case BTN_6:
+    case RemoteControl::BTN_6:
       Serial.print("Button [6]");
       break;
-    case BTN_7:
+    case RemoteControl::BTN_7:
       Serial.print("Button [7]");
       break;
-    case BTN_8:
+    case RemoteControl::BTN_8:
       Serial.print("Button [8]");
       break;
-    case BTN_9:
+    case RemoteControl::BTN_9:
       Serial.print("Button [9]");
       break;
-    case BTN_0:
+    case RemoteControl::BTN_0:
       Serial.print("Button [0]");
       break;
-    case BTN_ASTERISK:
+    case RemoteControl::BTN_ASTERISK:
       Serial.print("Button [*]");
       break;
-    case BTN_POUND:
+    case RemoteControl::BTN_POUND:
       Serial.print("Button [#]");
       break;
   }
