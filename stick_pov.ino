@@ -49,7 +49,7 @@ const uint32_t CYAN = 0x9900ff;
 uint8_t defaultBrightness = 160;//105; // Default is set to 50% of the brightness range
 const uint8_t maxBrightness = 230; // 90% of 255
 const uint8_t minBrightness = 20;
-const uint8_t brightnessIncrement = 1;
+const uint8_t brightnessIncrement = 5;
 
 uint32_t patternColumn[NUM_LEDS] = {};
 int selectedPattern = 0;
@@ -87,7 +87,6 @@ void setup() {
   Serial.begin(9600); // Connect with Serial monitor for testing purposes
 
   myReceiver.enableIRIn(); // start the receiver
-  Serial.println("Ready to receive IR signals");
 
   applySavedSettings();
   
@@ -216,6 +215,7 @@ void saveBrightness() {
 void checkButtonPress() {
   uint32_t IRVal;
   unsigned long currentTime = millis();
+  bool buttonPressed = false;
   
   // IR signal received
   if (myReceiver.decode(&IRresults)) {
@@ -224,73 +224,16 @@ void checkButtonPress() {
     Serial.println((String)IRVal);
 
     lastIRSignalReceivedTime = currentTime;
-
-    // Check for long press
-    // If it's not a repeat code, store the IR code, and start the button press timer
-    if (IRVal != RemoteControl::BTN_REPEAT) {
-      lastButtonPress = IRVal;
-      buttonPressStartTime = currentTime; // start button press timer
-
-//      Serial.println("lastButtonPress");
-//      debugButton(lastButtonPress);
-    }
-    else { // It is a repeat code
-//      Serial.print("longButtonPress = ");
-//      longButtonPress ? Serial.println("TRUE") : Serial.println("FALSE");
-//      Serial.println("lastButtonPress = " + (String)lastButtonPress);
-//      Serial.println("currentTime = " + (String)currentTime);
-//      Serial.println("buttonPressStartTime + longButtonPressTime = " + (String)(buttonPressStartTime + longButtonPressTime));
-      
-      // Check to see if long button press
-      if (!longButtonPress && (currentTime >= buttonPressStartTime + longButtonPressTime)) {
-        longButtonPress = true;
-        Serial.println("Long button press ON");
-      }
-    }
-
-//    Serial.println("buttonPressStartTime = " + (String)buttonPressStartTime);
+    lastButtonPress = IRVal;
+    buttonPressed = true;
 
     myReceiver.enableIRIn();  // Restart receiver
   }
-  else { // No IR signal received
-
-//    Serial.println((String)currentTime);
-    
-    // Reset lastButtonPress if coming off of a long press
-//    if (longButtonPress) {
-//      lastButtonPress = 0; // an invalid IR value
-//    }
-//    longButtonPress = false; // reset longButtonPress
-
-      // TESTING
-//      if (longButtonPress) {
-//        Serial.print("longButtonPress = ");
-//        longButtonPress ? Serial.println("TRUE") : Serial.println("FALSE");
-//        Serial.println("lastButtonPress = " + (String)lastButtonPress);
-//        Serial.println("currentTime = " + (String)currentTime);
-//        Serial.println("buttonPressStartTime + longButtonPressTime = " + (String)(buttonPressStartTime + longButtonPressTime));
-//          Serial.println((String)currentTime + " >= " + (String)(lastIRSignalReceivedTime + noIRSignalDelay));
-//          Serial.println("buttonPresStartTime+ longButtonPressTime = " + (String)(buttonPressStartTime + longButtonPressTime));
-//      }
-
-
-    if (longButtonPress && (currentTime >= lastIRSignalReceivedTime + noIRSignalDelay)) {
-      longButtonPress = false;
-      lastButtonPress = 0; // an invalid IR value
-      buttonPressStartTime = MAX_TIME_VALUE / 2; // Set to an unreachable time (divide by two to prevent overflow when doing math with buttonPressStartTime)
-      Serial.println("Long button press OFF");
-    }      
-    // If no signal has been received for noIRSignalDelay
-    // if (!shortButtonPress && (currentTime >= buttonPressStartTime + noIRSignalDelay)) {
-    else if (!shortButtonPress && (currentTime >= lastIRSignalReceivedTime + noIRSignalDelay)) {
-      if (isValidIRValue(lastButtonPress)) {
-        shortButtonPress = true;
-//        Serial.println("Short button press");
-      }
-    }
+  else {
+    // No IR signal received
   }
 
-  if (shortButtonPress || longButtonPress) {
+  if (buttonPressed) {
     switch(lastButtonPress) {
       case RemoteControlRoku::BTN_UP:
         nextPattern();
@@ -349,23 +292,10 @@ void checkButtonPress() {
         break;
       case RemoteControlRoku::BTN_VOL_DOWN:
         decreaseBrightness();
-      /*
-        if (shortButtonPress) {
-          changeDirection();
-        }
-      */
-//        incrementLEDCount();
         break;
     }
-
-//    debugButton(lastButtonPress);
-
-    // Reset shortButtonPress, since it should only perform its action once
-    if (shortButtonPress) {
-      shortButtonPress = false;
-      lastButtonPress = 0; // an invalid IR value
-    }
   }
+//    debugButton(lastButtonPress);
 }
 
 // Check to see if IR signal is a valid button code
