@@ -7,31 +7,12 @@
 #include <EEPROM.h>
 
 #include "RemoteControl.cpp"
+#include "RemoteControlRoku.cpp"
 
 #define DATA_PIN 11
 #define IR_PIN 5
 #define NUM_LEDS 70
 #define MAX_LEDS 255
-
-/*#define BTN_UP 16718055 // Up (0xFF18E7)
-#define BTN_DOWN 16730805 // Down (0xFF4AB5)
-#define BTN_LEFT 16716015 // Left (0xFF10EF)
-#define BTN_RIGHT 16734885 // Right (0xFF5AA5)
-#define BTN_OK 16726215 // OK (0xFF38C7)
-#define BTN_ASTERISK 16738455 // * (0xFF6897)
-#define BTN_POUND 16756815 // # (0xFFB04F)
-#define BTN_0 16750695 // 0 (0xFF9867)
-#define BTN_1 16753245 // 1 (0xFFA25D)
-#define BTN_2 16736925 // 2 (0xFF629D)
-#define BTN_3 16769565 // 3 (0xFFE21D)
-#define BTN_4 16720605 // 4 (0xFF22DD)
-#define BTN_5 16712445 // 5 (0xFF02FD)
-#define BTN_6 16761405 // 6 (0xFFC23D)
-#define BTN_7 16769055 // 7 (0xFFE01F)
-#define BTN_8 16754775 // 8 (0xFFA857)
-#define BTN_9 16748655 // 9 (0xFF906F)
-#define BTN_REPEAT 0xFFFFFFFF // This IR value is sent when a button is being held down
-*/
 #define MAX_TIME_VALUE 0xFFFFFFFF
 
 // Each favorite saves two bytes worth of info, so each is allocated two addresses
@@ -311,24 +292,26 @@ void checkButtonPress() {
 
   if (shortButtonPress || longButtonPress) {
     switch(lastButtonPress) {
-      case RemoteControl::BTN_UP:
+      case RemoteControlRoku::BTN_UP:
         nextPattern();
         break;
-      case RemoteControl::BTN_DOWN:
+      case RemoteControlRoku::BTN_DOWN:
         prevPattern();
         break;
-      case RemoteControl::BTN_LEFT:
+      case RemoteControlRoku::BTN_LEFT:
         decreaseSpeed();
         break;
-      case RemoteControl::BTN_RIGHT:
+      case RemoteControlRoku::BTN_RIGHT:
         increaseSpeed();
         break;
-      case RemoteControl::BTN_OK:
-        // Next pattern if short press, otherwise set to OFF pattern
-        if (shortButtonPress) {
-          nextPattern();
-        } else {
+      case RemoteControlRoku::BTN_POWER:
+        // Power button turns off all LEDs, or turns LEDs back on and displays the last pattern
+        // TODO: When power off is pressed, save the pattern that was being displayed
+        // TODO: When power on is pressed, set pattern to last pattern that was shown before power off was pressed
+        if (RemoteControlRoku::BTN_POWER_HOLD) {
           selectedPattern = -1;
+        } else if (RemoteControlRoku::BTN_POWER) {
+          nextPattern();
         }
         break;
       case RemoteControl::BTN_1:
@@ -361,12 +344,11 @@ void checkButtonPress() {
       case RemoteControl::BTN_0:
         shortButtonPress ? getFavorite(0) : setFavorite(0);
         break;
-      case RemoteControl::BTN_ASTERISK:
-//        decrementLEDCount();
-        decreaseBrightness();
-        break;
-      case RemoteControl::BTN_POUND:
+      case RemoteControlRoku::BTN_VOL_UP:
         increaseBrightness();
+        break;
+      case RemoteControlRoku::BTN_VOL_DOWN:
+        decreaseBrightness();
       /*
         if (shortButtonPress) {
           changeDirection();
