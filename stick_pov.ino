@@ -11,8 +11,8 @@
 
 #define DATA_PIN 11
 #define IR_PIN 5
-#define NUM_LEDS 70
-#define MAX_LEDS 255
+#define NUM_LEDS 50
+#define MAX_LEDS 100
 #define MAX_TIME_VALUE 0xFFFFFFFF
 
 // Each favorite saves two bytes worth of info, so each is allocated two addresses
@@ -51,7 +51,7 @@ const uint8_t maxBrightness = 230; // 90% of 255
 const uint8_t minBrightness = 20;
 const uint8_t brightnessIncrement = 5;
 
-uint32_t patternColumn[NUM_LEDS] = {};
+uint32_t patternColumn[MAX_LEDS] = {};
 int selectedPattern = 0;
 uint8_t numPatterns = 31;
 boolean patternChanged = true;
@@ -97,28 +97,32 @@ void setup() {
   randomSeed(analogRead(0));
 }
 
-// NOT USED IN THIS VERSION
 // Update the number of LEDs on the strip
 void incrementLEDCount() {
   // TODO: Save the new number of LEDs to the EEPROM
-  // TODO: Press * to decrement, and # to increment
+  // Increase number LEDs in strip object
   if (strip.numPixels() >= MAX_LEDS) {
     strip.updateLength((uint16_t)MAX_LEDS);
   } else {
     strip.updateLength(strip.numPixels() + 1);
-    Serial.println(strip.numPixels());
+    Serial.println("Num LEDS: " + (String)strip.numPixels());
   }
+  strip.show();
 }
 
-// NOT USED IN THIS VERSION
 void decrementLEDCount() {
   // TODO: Save the new number of LEDs to the EEPROM
-  // TODO: Press * to decrement, and # to increment
   if (strip.numPixels() <= 1) {
-    strip.updateLength(0);
+    strip.updateLength(1); // Don't ever turn off all LEDs. This could be confusing to the User
   } else {
+    // Turn off highest LED
+    patternColumn[strip.numPixels() - 1] = BLACK;
+    showColumn();
+    
     strip.updateLength(strip.numPixels() - 1);
-  }
+    Serial.println("Num LEDS: " + (String)strip.numPixels());
+  }  
+  strip.show();
 }
 
 void applySavedSettings() {
@@ -221,7 +225,7 @@ void checkButtonPress() {
   if (myReceiver.decode(&IRresults)) {
     IRVal = IRresults.value;
 
-    Serial.println((String)IRVal);
+    // Serial.println((String)IRVal);
 
     lastIRSignalReceivedTime = currentTime;
     lastButtonPress = IRVal;
@@ -256,6 +260,12 @@ void checkButtonPress() {
         } else if (RemoteControlRoku::BTN_POWER) {
           nextPattern();
         }
+        break;
+      case RemoteControlRoku::BTN_FASTFORWARD:
+        incrementLEDCount();
+        break;
+      case RemoteControlRoku::BTN_REWIND:
+        decrementLEDCount();
         break;
       case RemoteControl::BTN_1:
         shortButtonPress ? getFavorite(1) : setFavorite(1);
@@ -294,8 +304,9 @@ void checkButtonPress() {
         decreaseBrightness();
         break;
     }
+    // debugButton(lastButtonPress); // DEBUGGING
+    Serial.println("Button [" + RemoteControlRoku::getBtnDescription(lastButtonPress) + "]");
   }
-//    debugButton(lastButtonPress);
 }
 
 // Check to see if IR signal is a valid button code
@@ -826,7 +837,7 @@ void pattern5(uint32_t color) {
 void pattern6(uint32_t color) {
   // select a new random amount number to build up to
   if (patternChanged || patternComplete) {
-    pat_i_0 = random(5, NUM_LEDS);
+    pat_i_0 = random(5, strip.numPixels());
     patternChanged = false;
     patternComplete = false;
     patternReverse = false;
@@ -1170,62 +1181,7 @@ void alertUser() {
 }
 
 void debugButton(uint32_t buttonVal) {
-  switch(buttonVal) {
-    case RemoteControl::BTN_UP:
-      Serial.print("Button [UP]");
-      break;
-    case RemoteControl::BTN_DOWN:
-      Serial.print("Button [DOWN]");
-      break;
-    case RemoteControl::BTN_LEFT:
-      Serial.print("Button [LEFT]");
-      break;
-    case RemoteControl::BTN_RIGHT:
-      Serial.print("Button [RIGHT]");
-      break;
-    case RemoteControl::BTN_OK:
-      Serial.print("Button [OK]");
-      break;
-    case RemoteControl::BTN_1:
-      Serial.print("Button [1]");
-      break;
-    case RemoteControl::BTN_2:
-      Serial.print("Button [2]");
-      break;
-    case RemoteControl::BTN_3:
-      Serial.print("Button [3]");
-      break;
-    case RemoteControl::BTN_4:
-      Serial.print("Button [4]");
-      break;
-    case RemoteControl::BTN_5:
-      Serial.print("Button [5]");
-      break;
-    case RemoteControl::BTN_6:
-      Serial.print("Button [6]");
-      break;
-    case RemoteControl::BTN_7:
-      Serial.print("Button [7]");
-      break;
-    case RemoteControl::BTN_8:
-      Serial.print("Button [8]");
-      break;
-    case RemoteControl::BTN_9:
-      Serial.print("Button [9]");
-      break;
-    case RemoteControl::BTN_0:
-      Serial.print("Button [0]");
-      break;
-    case RemoteControl::BTN_ASTERISK:
-      Serial.print("Button [*]");
-      break;
-    case RemoteControl::BTN_POUND:
-      Serial.print("Button [#]");
-      break;
-  }
-  if (longButtonPress) {
-    Serial.println(" (LONG)");
-  } else {
-    Serial.println("");
-  }
+  
+
+   
 }
