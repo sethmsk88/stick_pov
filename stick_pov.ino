@@ -11,8 +11,6 @@
 
 #define DATA_PIN 11
 #define IR_PIN 5
-#define NUM_LEDS 50
-#define MAX_LEDS 100
 #define MAX_TIME_VALUE 0xFFFFFFFF
 
 // Each favorite saves two bytes worth of info, so each is allocated two addresses
@@ -50,8 +48,10 @@ uint8_t defaultBrightness = 160;//105; // Default is set to 50% of the brightnes
 const uint8_t maxBrightness = 230; // 90% of 255
 const uint8_t minBrightness = 20;
 const uint8_t brightnessIncrement = 5;
+uint8_t numLEDs = 50;
+const uint8_t maxLEDs = 100;
 
-uint32_t patternColumn[MAX_LEDS] = {};
+uint32_t patternColumn[maxLEDs] = {};
 int selectedPattern = 0;
 uint8_t numPatterns = 31;
 boolean patternChanged = true;
@@ -73,7 +73,7 @@ int patDirection = 0;
 boolean patternReverse = false;
 uint8_t tempSavedBrightness = 0; // used for patterns that alter brightness (must init to 0)
 
-Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_LEDS, DATA_PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel strip;
 
 // Create a receiver object to listen on pin 2
 IRrecv myReceiver(IR_PIN);
@@ -89,7 +89,7 @@ void setup() {
   myReceiver.enableIRIn(); // start the receiver
 
   applySavedSettings();
-  
+  strip = Adafruit_NeoPixel(numLEDs, DATA_PIN, NEO_GRB + NEO_KHZ800);
   strip.begin();
   strip.setBrightness(defaultBrightness);
   strip.show();
@@ -99,19 +99,20 @@ void setup() {
 
 // Update the number of LEDs on the strip
 void incrementLEDCount() {
-  // TODO: Save the new number of LEDs to the EEPROM
   // Increase number LEDs in strip object
-  if (strip.numPixels() >= MAX_LEDS) {
-    strip.updateLength((uint16_t)MAX_LEDS);
+  if (strip.numPixels() >= maxLEDs) {
+    strip.updateLength((uint16_t)maxLEDs);
   } else {
     strip.updateLength(strip.numPixels() + 1);
-    Serial.println("Num LEDS: " + (String)strip.numPixels());
+    // Serial.println("Num LEDS: " + (String)strip.numPixels());
   }
   strip.show();
+
+  // Save number of LEDs to non-volatile memory
+  EEPROM.update(NUM_LEDS_SAVED_ADDR, (uint8_t)strip.numPixels());
 }
 
 void decrementLEDCount() {
-  // TODO: Save the new number of LEDs to the EEPROM
   if (strip.numPixels() <= 1) {
     strip.updateLength(1); // Don't ever turn off all LEDs. This could be confusing to the User
   } else {
@@ -120,9 +121,14 @@ void decrementLEDCount() {
     showColumn();
     
     strip.updateLength(strip.numPixels() - 1);
-    Serial.println("Num LEDS: " + (String)strip.numPixels());
+    // Serial.println("Num LEDS: " + (String)strip.numPixels());
   }  
   strip.show();
+
+  // Serial.println("Saving number of LEDs " + (String)strip.numPixels());
+
+  // Save number of LEDs to non-volatile memory
+  EEPROM.update(NUM_LEDS_SAVED_ADDR, (uint8_t)strip.numPixels());
 }
 
 void applySavedSettings() {
@@ -143,6 +149,13 @@ void applySavedSettings() {
 
   // Apply saved brightness setting
   defaultBrightness = EEPROM.read(BRIGHTNESS_SAVED_ADDR);
+
+  // Serial.println("Applying saved number of LEDs " + (String)EEPROM.read(NUM_LEDS_SAVED_ADDR));
+
+  // Apply saved number of LEDs for the stick
+  if (EEPROM.read(NUM_LEDS_SAVED_ADDR) != unsetVal) {
+    numLEDs = EEPROM.read(NUM_LEDS_SAVED_ADDR);
+  }
 }
 
 // Save a favorite
