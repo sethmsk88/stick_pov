@@ -238,7 +238,7 @@ void checkButtonPress() {
   if (myReceiver.decode(&IRresults)) {
     IRVal = IRresults.value;
 
-    // Serial.println((String)IRVal);
+    Serial.println((String)IRVal);
 
     lastIRSignalReceivedTime = currentTime;
     lastButtonPress = IRVal;
@@ -280,7 +280,7 @@ void checkButtonPress() {
       case RemoteControlRoku::BTN_REWIND:
         decrementLEDCount();
         break;
-      case RemoteControl::BTN_1:
+      /*case RemoteControl::BTN_1:
         shortButtonPress ? getFavorite(1) : setFavorite(1);
         break;
       case RemoteControl::BTN_2:
@@ -310,6 +310,7 @@ void checkButtonPress() {
       case RemoteControl::BTN_0:
         shortButtonPress ? getFavorite(0) : setFavorite(0);
         break;
+*/
       case RemoteControlRoku::BTN_VOL_UP:
         increaseBrightness();
         break;
@@ -381,11 +382,11 @@ void increaseBrightness() {
       strip.setBrightness(strip.getBrightness() + brightnessIncrement);
     }
     Serial.println("Brightness = " + (String)strip.getBrightness());
+    showColumn();
   } else {
     Serial.println("Maximum Brightness");    
     alertUser();
   }
-  strip.show();
 }
 
 // Decrease brightness of pixels
@@ -399,11 +400,11 @@ void decreaseBrightness() {
       strip.setBrightness(strip.getBrightness() - brightnessIncrement);
     }
     Serial.println("Brightness = " + (String)strip.getBrightness());
+    showColumn();
   } else {
     Serial.println("Minimum Brightness");    
     alertUser();
   }
-  strip.show();
 }
 
 // Increase speed of pattern
@@ -1188,9 +1189,18 @@ uint32_t Wheel(byte WheelPos) {
 }
 
 // Alert user by flashing stick red
-void alertUser() {
+void alertUser() {    
+  setAllPixels(BLACK);
+  delay(50);
   setAllPixels(RED);
-  delay(500);
+  delay(50);
+  setAllPixels(BLACK);
+  delay(50);
+  setAllPixels(RED);
+  delay(200);
+
+  patternChanged = true; // Trigger a pattern restart for patterns that are unchanging
+  showColumn();
 }
 
 void debugButton(uint32_t buttonVal) {
