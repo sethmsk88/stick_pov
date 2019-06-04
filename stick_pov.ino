@@ -361,6 +361,9 @@ void checkButtonPress() {
       case RemoteControlRoku::BTN_VOL_DOWN_HOLD:
         decreaseBrightness();
         break;
+      case RemoteControlRoku::BTN_RETURN:
+        changeDirection();
+        break;
     }
 
     pendingButtonPress = 0; // clear value
