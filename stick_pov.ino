@@ -309,13 +309,12 @@ void checkButtonPress() {
         increaseSpeed();
         break;
       case RemoteControlRoku::BTN_POWER:
-        // Power button turns off all LEDs, or turns LEDs back on and displays the last pattern
-        // TODO: When power off is pressed, save the pattern that was being displayed
-        // TODO: When power on is pressed, set pattern to last pattern that was shown before power off was pressed
-        if (RemoteControlRoku::BTN_POWER_HOLD) {
+        // Power button OFF turns all pixels off
+        // Power button ON set stick to HOME favorite mode
+        if (selectedPattern > -1) {
           selectedPattern = -1;
-        } else if (RemoteControlRoku::BTN_POWER) {
-          nextPattern();
+        } else {
+          getFavorite(0); // Set to HOME
         }
         break;
       case RemoteControlRoku::BTN_FASTFORWARD:
