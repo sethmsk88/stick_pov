@@ -1,5 +1,6 @@
-#include <WString.h>
+#include <WString.h> // to be allowed to use .ino String class in a .cpp file
 typedef unsigned long uint32_t;
+typedef bool boolean;
 
 class RemoteControlRoku
 {
@@ -133,4 +134,66 @@ class RemoteControlRoku
           }
           return "";
       }
+
+      static boolean RemoteControlRoku::isButtonPress(uint32_t btnCode) {
+        switch (btnCode) {
+            case RemoteControlRoku::BTN_ASTERISK:
+            case RemoteControlRoku::BTN_BACK:
+            case RemoteControlRoku::BTN_DOWN:
+            case RemoteControlRoku::BTN_FASTFORWARD:
+            case RemoteControlRoku::BTN_HOME:
+            case RemoteControlRoku::BTN_LEFT:
+            case RemoteControlRoku::BTN_MEDIA_0:
+            case RemoteControlRoku::BTN_MEDIA_1:
+            case RemoteControlRoku::BTN_MEDIA_2:
+            case RemoteControlRoku::BTN_MEDIA_3:
+            case RemoteControlRoku::BTN_MUTE:
+            case RemoteControlRoku::BTN_OK:
+            case RemoteControlRoku::BTN_PLAYPAUSE:
+            case RemoteControlRoku::BTN_POWER:
+            case RemoteControlRoku::BTN_RETURN:
+            case RemoteControlRoku::BTN_REWIND:
+            case RemoteControlRoku::BTN_RIGHT:
+            case RemoteControlRoku::BTN_UP:
+            case RemoteControlRoku::BTN_VOL_DOWN:
+            case RemoteControlRoku::BTN_VOL_UP:
+                return true;
+                break;
+            
+            default:
+                return false;
+                break;
+        }
+    }
+
+    static boolean RemoteControlRoku::isButtonHold(uint32_t btnCode) {
+        switch (btnCode) {
+            case RemoteControlRoku::BTN_ASTERISK_HOLD:
+            case RemoteControlRoku::BTN_BACK_HOLD:
+            case RemoteControlRoku::BTN_DOWN_HOLD:
+            case RemoteControlRoku::BTN_FASTFORWARD_HOLD:
+            case RemoteControlRoku::BTN_HOME_HOLD:
+            case RemoteControlRoku::BTN_LEFT_HOLD:
+            case RemoteControlRoku::BTN_MEDIA_0_HOLD:
+            case RemoteControlRoku::BTN_MEDIA_1_HOLD:
+            case RemoteControlRoku::BTN_MEDIA_2_HOLD:
+            case RemoteControlRoku::BTN_MEDIA_3_HOLD:
+            case RemoteControlRoku::BTN_MUTE_HOLD:
+            case RemoteControlRoku::BTN_OK_HOLD:
+            case RemoteControlRoku::BTN_PLAYPAUSE_HOLD:
+            case RemoteControlRoku::BTN_POWER_HOLD:
+            case RemoteControlRoku::BTN_RETURN_HOLD:
+            case RemoteControlRoku::BTN_REWIND_HOLD:
+            case RemoteControlRoku::BTN_RIGHT_HOLD:
+            case RemoteControlRoku::BTN_UP_HOLD:
+            case RemoteControlRoku::BTN_VOL_DOWN_HOLD:
+            case RemoteControlRoku::BTN_VOL_UP_HOLD:
+                return true;
+                break;
+            
+            default:
+                return false;
+                break;
+        }
+    }
 };

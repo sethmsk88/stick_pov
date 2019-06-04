@@ -6,7 +6,6 @@
 //#include <MemoryFree.h>
 #include <EEPROM.h>
 
-#include "RemoteControl.cpp"
 #include "RemoteControlRoku.cpp"
 
 #define DATA_PIN 11
@@ -22,14 +21,9 @@ const uint16_t FAV_1_ADDR = 2;
 const uint16_t FAV_2_ADDR = 4;
 const uint16_t FAV_3_ADDR = 6;
 const uint16_t FAV_4_ADDR = 8;
-const uint16_t FAV_5_ADDR = 10;
-const uint16_t FAV_6_ADDR = 12;
-const uint16_t FAV_7_ADDR = 14;
-const uint16_t FAV_8_ADDR = 16;
-const uint16_t FAV_9_ADDR = 18;
-const uint16_t NUM_LEDS_SAVED_ADDR = 20;
-const uint16_t BRIGHTNESS_SAVED_ADDR = 21; // NOT BEING USED - Only needs one byte, so one address
-const uint16_t LAST_PATTERN_SAVED_ADDR = 22; // NOT BEING USED - Only needs one byte, so one address
+const uint16_t NUM_LEDS_SAVED_ADDR = 10;
+const uint16_t BRIGHTNESS_SAVED_ADDR = 11;
+const uint16_t LAST_PATTERN_SAVED_ADDR = 12; // NOT BEING USED - Only needs one byte, so one address
 
 const uint32_t BLACK = 0x000000; // GRB
 const uint32_t PURPLE = 0x008080;
@@ -62,16 +56,15 @@ uint16_t pat_i_2 = 0; // another index to track progress of a pattern
 uint8_t speedDelay = 0; // ms of delay between showing columns
 uint8_t maxSpeedDelay = 45;
 uint8_t speedIncrement = 1;
-boolean shortButtonPress = false;
-boolean longButtonPress = false;
 uint32_t lastButtonPress = 0;
+uint32_t pendingButtonPress = 0; // IR value for button press
 unsigned long buttonPressStartTime = 0;
-unsigned long longButtonPressTime = 1000; // 1.5 seconds
-unsigned long lastIRSignalReceivedTime = 0;
 unsigned long noIRSignalDelay = 150; // if there are no IR signals for this amount of time, then we can say there are no active IR signals
 int patDirection = 0;
 boolean patternReverse = false;
 uint8_t tempSavedBrightness = 0; // used for patterns that alter brightness (must init to 0)
+
+unsigned long buttonHoldStartTime = 0;
 
 Adafruit_NeoPixel strip;
 
@@ -79,13 +72,15 @@ Adafruit_NeoPixel strip;
 IRrecv myReceiver(IR_PIN);
 decode_results IRresults;
 
+// Using polymorphism to find variable types
 //void types(uint16_t var) {Serial.println("Type is uint16_t");}
 //void types(int32_t var) {Serial.println("Type is int32_t");}
 //void types(uint32_t var) {Serial.println("Type is uint32_t");}
 
 void setup() {
   Serial.begin(9600); // Connect with Serial monitor for testing purposes
-
+  Serial.println("Serial Monitor Ready");
+  
   myReceiver.enableIRIn(); // start the receiver
 
   applySavedSettings();
@@ -137,7 +132,8 @@ void applySavedSettings() {
   int unsetVal = 255; // the number stored at an address that is unset
   
   // if favorites have not yet been saved, set them to 0
-  for (int i=0; i <= 9; i++) {
+  int numFavorites = 5;
+  for (int i=0; i < numFavorites; i++) {
     patternIndex_addr = getFavoriteAddr(i, 0); // Load pattern for this favorite
     speedDelay_addr = getFavoriteAddr(i, 1); // Load speed delay for this favorite
 
@@ -146,6 +142,12 @@ void applySavedSettings() {
       EEPROM.update(speedDelay_addr, 0);
     }
   }
+
+  // Reset EEPROM values - ONLY RUN ONCE
+  // ONLY activate this if the usage of memory addresses has changed in the EEPROM
+  // for (int i=0; i < 22; i++) {
+  //   EEPROM.update(i, 255);
+  // }
 
   // Apply saved brightness setting
   defaultBrightness = EEPROM.read(BRIGHTNESS_SAVED_ADDR);
@@ -161,7 +163,7 @@ void applySavedSettings() {
 // Save a favorite
 void setFavorite(uint8_t i) {
   if (selectedPattern < 0) {
-    Serial.println("ERROR: Cannot saved a pattern favorite whose index is negative");
+    Serial.println("ERROR: Cannot save a pattern favorite whose index is negative");
     return;
   }
   
@@ -188,7 +190,7 @@ void getFavorite(uint8_t i) {
 }
 
 // Get address of favorite in EEPROM
-// fav_i - Favorite number (0 - 9)
+// fav_i - Favorite number (0 - 4)
 // attr_i - index of the favorite attribute (0 - 1)
 int getFavoriteAddr(int fav_i, int attr_i) {
   switch (fav_i) {
@@ -207,21 +209,6 @@ int getFavoriteAddr(int fav_i, int attr_i) {
     case 4:
       return FAV_4_ADDR + attr_i;
       break;
-    case 5:
-      return FAV_5_ADDR + attr_i;
-      break;
-    case 6:
-      return FAV_6_ADDR + attr_i;
-      break;
-    case 7:
-      return FAV_7_ADDR + attr_i;
-      break;
-    case 8:
-      return FAV_8_ADDR + attr_i;
-      break;
-    case 9:
-      return FAV_9_ADDR + attr_i;
-      break;      
   }
 }
 
@@ -229,29 +216,68 @@ void saveBrightness() {
   EEPROM.update(BRIGHTNESS_SAVED_ADDR, strip.getBrightness());
 }
 
-void checkButtonPress() {
+void checkButtonPress() { 
   uint32_t IRVal;
+  uint32_t buttonActionVal;
   unsigned long currentTime = millis();
-  bool buttonPressed = false;
+  bool buttonAction = false; // whether or not to perform button action
+  bool buttonHold = false; // whether or not a button is being held down
+
+  // Number of milliseconds that must pass after a button press without receiving a button hold code,
+  // before it is considered a button press instead of a button hold.
+  int buttonPressThreshold = 200;
+
+  // Number of milliseconds that the user must hold a button before the button hold action is performed
+  int buttonHoldThreshold = 1000;
   
   // IR signal received
   if (myReceiver.decode(&IRresults)) {
     IRVal = IRresults.value;
 
-    Serial.println((String)IRVal);
+    // Serial.println((String)IRVal);
 
-    lastIRSignalReceivedTime = currentTime;
-    lastButtonPress = IRVal;
-    buttonPressed = true;
+    if (RemoteControlRoku::isButtonPress(IRVal)) {
+      // Button presses must wait for a short amount of time (i.e. buttonPressThreshold) before action is performed. This is
+      // so we can check to see if the user is holding the button
+      lastButtonPress = IRVal;
+      pendingButtonPress = IRVal;
+      buttonPressStartTime = currentTime;
+
+    } else if (RemoteControlRoku::isButtonHold(IRVal)) {
+      // if the lastButtonPress was NOT a button hold, set the buttonHoldStartTime
+      if (RemoteControlRoku::isButtonPress(lastButtonPress)) {
+        buttonHoldStartTime = buttonPressStartTime;
+      }
+      lastButtonPress = IRVal;
+      
+      // if buttonHoldThreshold has passed, trigger button hold action
+      if (currentTime - buttonHoldStartTime >= buttonHoldThreshold) {
+        buttonHold = true;
+        buttonAction = true;
+      }
+    } else {
+      // Invalid IR value
+    }
 
     myReceiver.enableIRIn();  // Restart receiver
   }
   else {
     // No IR signal received
-  }
 
-  if (buttonPressed) {
-    switch(lastButtonPress) {
+    // if the last IR code was a button press, check to see if the threshold time has passed
+    if (RemoteControlRoku::isButtonPress(pendingButtonPress)
+      && (currentTime - buttonPressStartTime >= buttonPressThreshold)) {
+        buttonAction = true;
+    }
+  }  
+
+  // If a button action is ready to be performed (i.e. if the wait threshold has passed)
+  if (buttonAction) {
+    
+    // Use buttonHold to determine which stored button code to use for the action (e.g. the press, or the hold)
+    buttonActionVal = buttonHold ? lastButtonPress : pendingButtonPress;
+
+    switch(buttonActionVal) {
       case RemoteControlRoku::BTN_UP:
         nextPattern();
         break;
@@ -280,75 +306,42 @@ void checkButtonPress() {
       case RemoteControlRoku::BTN_REWIND:
         decrementLEDCount();
         break;
-      /*case RemoteControl::BTN_1:
-        shortButtonPress ? getFavorite(1) : setFavorite(1);
+      case RemoteControlRoku::BTN_HOME:
+        // shortButtonPress ? getFavorite(0) : setFavorite(0);
         break;
-      case RemoteControl::BTN_2:
-        shortButtonPress ? getFavorite(2) : setFavorite(2);
+      case RemoteControlRoku::BTN_HOME_HOLD:
         break;
-      case RemoteControl::BTN_3:
-        shortButtonPress ? getFavorite(3) : setFavorite(3);
+      case RemoteControlRoku::BTN_MEDIA_0:
         break;
-      case RemoteControl::BTN_4:
-        shortButtonPress ? getFavorite(4) : setFavorite(4);
+      case RemoteControlRoku::BTN_MEDIA_0_HOLD:
         break;
-      case RemoteControl::BTN_5:
-        shortButtonPress ? getFavorite(5) : setFavorite(5);
+      case RemoteControlRoku::BTN_MEDIA_1:
         break;
-      case RemoteControl::BTN_6:
-        shortButtonPress ? getFavorite(6) : setFavorite(6);
+      case RemoteControlRoku::BTN_MEDIA_1_HOLD:
         break;
-      case RemoteControl::BTN_7:
-        shortButtonPress ? getFavorite(7) : setFavorite(7);
+      case RemoteControlRoku::BTN_MEDIA_2:
         break;
-      case RemoteControl::BTN_8:
-        shortButtonPress ? getFavorite(8) : setFavorite(8);
+      case RemoteControlRoku::BTN_MEDIA_2_HOLD:
         break;
-      case RemoteControl::BTN_9:
-        shortButtonPress ? getFavorite(9) : setFavorite(9);
+      case RemoteControlRoku::BTN_MEDIA_3:
         break;
-      case RemoteControl::BTN_0:
-        shortButtonPress ? getFavorite(0) : setFavorite(0);
+      case RemoteControlRoku::BTN_MEDIA_3_HOLD:
         break;
-*/
       case RemoteControlRoku::BTN_VOL_UP:
+      case RemoteControlRoku::BTN_VOL_UP_HOLD:
         increaseBrightness();
         break;
       case RemoteControlRoku::BTN_VOL_DOWN:
+      case RemoteControlRoku::BTN_VOL_DOWN_HOLD:
         decreaseBrightness();
         break;
     }
-    // debugButton(lastButtonPress); // DEBUGGING
-    Serial.println("Button [" + RemoteControlRoku::getBtnDescription(lastButtonPress) + "]");
-  }
-}
 
-// Check to see if IR signal is a valid button code
-boolean isValidIRValue(uint32_t irValue) {
-  switch (irValue) {
-    case RemoteControl::BTN_UP:
-    case RemoteControl::BTN_DOWN:
-    case RemoteControl::BTN_LEFT:
-    case RemoteControl::BTN_RIGHT:
-    case RemoteControl::BTN_OK:
-    case RemoteControl::BTN_1:
-    case RemoteControl::BTN_2:
-    case RemoteControl::BTN_3:
-    case RemoteControl::BTN_4:
-    case RemoteControl::BTN_5:
-    case RemoteControl::BTN_6:
-    case RemoteControl::BTN_7:
-    case RemoteControl::BTN_8:
-    case RemoteControl::BTN_9:
-    case RemoteControl::BTN_0:
-    case RemoteControl::BTN_ASTERISK:
-    case RemoteControl::BTN_POUND:
-    case RemoteControl::BTN_REPEAT:
-//      Serial.println("Valid IR value");
-      return true;
+    pendingButtonPress = 0; // clear value
+
+    // debugButton(lastButtonPress); // DEBUGGING
+    Serial.println("Button [" + RemoteControlRoku::getBtnDescription(buttonActionVal) + "]");
   }
-//  Serial.println("Invalid IR value");
-  return false;
 }
 
 void nextPattern() {
@@ -1083,7 +1076,7 @@ void resetIndexesFlags() {
   }
 }
 
-void loop() {
+void loop() {  
   showPattern();
   checkButtonPress();
   
