@@ -223,6 +223,8 @@ void checkButtonPress() {
   bool buttonAction = false; // whether or not to perform button action
   bool buttonHold = false; // whether or not a button is being held down
 
+  // Serial.println((String)currentTime); // DEBUG
+
   // Number of milliseconds that must pass after a button press without receiving a button hold code,
   // before it is considered a button press instead of a button hold.
   int buttonPressThreshold = 200;
@@ -234,6 +236,8 @@ void checkButtonPress() {
   if (myReceiver.decode(&IRresults)) {
     IRVal = IRresults.value;
 
+
+    // Serial.println("IR Received [" + RemoteControlRoku::getBtnDescription(IRVal) + "]"); // DEBUG
     // Serial.println((String)IRVal);
 
     if (RemoteControlRoku::isButtonPress(IRVal)) {
@@ -244,12 +248,13 @@ void checkButtonPress() {
       buttonPressStartTime = currentTime;
 
     } else if (RemoteControlRoku::isButtonHold(IRVal)) {
+      // Serial.println("lastButtonPress = " + RemoteControlRoku::getBtnDescription(lastButtonPress)); // DEBUG
       // if the lastButtonPress was NOT a button hold, set the buttonHoldStartTime
       if (RemoteControlRoku::isButtonPress(lastButtonPress)) {
         buttonHoldStartTime = buttonPressStartTime;
       }
       lastButtonPress = IRVal;
-      
+
       // if buttonHoldThreshold has passed, trigger button hold action
       if (currentTime - buttonHoldStartTime >= buttonHoldThreshold) {
         buttonHold = true;
@@ -263,6 +268,17 @@ void checkButtonPress() {
   }
   else {
     // No IR signal received
+
+    // BEGIN DEBUG
+    // if (RemoteControlRoku::isButtonPress(pendingButtonPress)) {
+      // Serial.println((String)currentTime + " - " + (String)buttonPressStartTime + " = " + (String)(currentTime - buttonPressStartTime));
+    // }
+    // END DEBUG
+
+    // If there is a pending button press, but a button hold code was received, reset the buttonPressStartTime value
+    if (RemoteControlRoku::isButtonPress(pendingButtonPress) && RemoteControlRoku::isButtonHold(lastButtonPress)) {
+        buttonPressStartTime = currentTime;
+    }
 
     // if the last IR code was a button press, check to see if the threshold time has passed
     if (RemoteControlRoku::isButtonPress(pendingButtonPress)
@@ -285,9 +301,11 @@ void checkButtonPress() {
         prevPattern();
         break;
       case RemoteControlRoku::BTN_LEFT:
+      case RemoteControlRoku::BTN_LEFT_HOLD:
         decreaseSpeed();
         break;
       case RemoteControlRoku::BTN_RIGHT:
+      case RemoteControlRoku::BTN_RIGHT_HOLD:
         increaseSpeed();
         break;
       case RemoteControlRoku::BTN_POWER:
@@ -307,25 +325,34 @@ void checkButtonPress() {
         decrementLEDCount();
         break;
       case RemoteControlRoku::BTN_HOME:
-        // shortButtonPress ? getFavorite(0) : setFavorite(0);
+        getFavorite(0);
         break;
       case RemoteControlRoku::BTN_HOME_HOLD:
+        setFavorite(0);
         break;
       case RemoteControlRoku::BTN_MEDIA_0:
+        getFavorite(1);
         break;
       case RemoteControlRoku::BTN_MEDIA_0_HOLD:
+        setFavorite(1);
         break;
       case RemoteControlRoku::BTN_MEDIA_1:
+        getFavorite(2);
         break;
       case RemoteControlRoku::BTN_MEDIA_1_HOLD:
+        setFavorite(2);
         break;
       case RemoteControlRoku::BTN_MEDIA_2:
+        getFavorite(3);
         break;
       case RemoteControlRoku::BTN_MEDIA_2_HOLD:
+        setFavorite(3);
         break;
       case RemoteControlRoku::BTN_MEDIA_3:
+        getFavorite(4);
         break;
       case RemoteControlRoku::BTN_MEDIA_3_HOLD:
+        setFavorite(4);
         break;
       case RemoteControlRoku::BTN_VOL_UP:
       case RemoteControlRoku::BTN_VOL_UP_HOLD:
@@ -339,8 +366,7 @@ void checkButtonPress() {
 
     pendingButtonPress = 0; // clear value
 
-    // debugButton(lastButtonPress); // DEBUGGING
-    Serial.println("Button [" + RemoteControlRoku::getBtnDescription(buttonActionVal) + "]");
+    Serial.println("Button [" + RemoteControlRoku::getBtnDescription(buttonActionVal) + "]"); // DEBUG
   }
 }
 
