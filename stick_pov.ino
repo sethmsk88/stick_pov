@@ -60,9 +60,10 @@ uint16_t pat_i_1 = 0; // another index to track progress of a pattern
 uint16_t pat_i_2 = 0; // another index to track progress of a pattern
 uint8_t speedDelay = 0; // ms of delay between showing columns
 uint8_t maxSpeedDelay = 45;
-const int POVSpeedDelayDefault = 16;
-const int POVSpeedDelay = 16;
+int POVSpeedDelay = 16;
+const int POVSpeedDelayMax = 50;
 uint8_t speedIncrement = 1;
+int POVSpeedIncrement = 1;
 uint32_t lastButtonPress = 0;
 uint32_t pendingButtonPress = 0; // IR value for button press
 unsigned long buttonPressStartTime = 0;
@@ -375,12 +376,16 @@ void checkButtonPress() {
         changeDirection();
         break;
       case RemoteControlRoku::BTN_FASTFORWARD:
-      case RemoteControlRoku::BTN_FASTFORWARD_HOLD:
         increaseSpeed();
         break;
+      case RemoteControlRoku::BTN_FASTFORWARD_HOLD:
+        increasePOVSpeed();
+        break;
       case RemoteControlRoku::BTN_REWIND:
-      case RemoteControlRoku::BTN_REWIND_HOLD:
         decreaseSpeed();
+        break;
+      case RemoteControlRoku::BTN_REWIND_HOLD:
+        decreasePOVSpeed();
         break;
     }
 
@@ -477,6 +482,35 @@ void decreaseSpeed() {
     speedDelay += speedIncrement;
   }
   Serial.println("Speed Delay: " + (String)speedDelay);
+}
+
+// Increase speed of POV effect
+void increasePOVSpeed() {
+  if (POVSpeedDelay <= 0) {
+    POVSpeedDelay = 0;
+    Serial.println("Maximum POV speed");
+    alertUser();
+  } else {
+    if (POVSpeedDelay - POVSpeedIncrement < 0) {
+      POVSpeedDelay = 0;
+      Serial.println("Maximum POV speed");
+    } else {
+      POVSpeedDelay -= POVSpeedIncrement;
+    }
+  }
+  Serial.println("POV Speed Delay: " + (String)POVSpeedDelay);
+}
+
+// Decrease speed of POV effect
+void decreasePOVSpeed() {
+  if (POVSpeedDelay >= POVSpeedDelayMax) {
+    POVSpeedDelay = POVSpeedDelayMax;
+    Serial.println("Minimum POV speed");
+    alertUser();
+  } else {
+    POVSpeedDelay += POVSpeedIncrement;
+  }
+  Serial.println("POV Speed Delay: " + (String)POVSpeedDelay);
 }
 
 // Change direction of pattern
