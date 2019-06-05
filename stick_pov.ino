@@ -52,7 +52,7 @@ const uint8_t maxLEDs = 100;
 uint32_t patternColumn[maxLEDs] = {};
 int selectedPatternIdx = 0; // defaul pattern index
 int selectedPatternColorIdx = 0; // default color index
-uint8_t numPatterns = 31;
+uint8_t numPatterns = 8;
 boolean patternChanged = true;
 boolean patternComplete = false; // used when a pattern should only show once
 uint16_t pat_i_0 = 0; // an index to track progress of a pattern
@@ -598,75 +598,19 @@ void showPattern() {
       pattern1(5);
       break;
     case 3:
-      break;
-    case 4:
-      break;
-    case 5:
-      break;
-    case 6:
-      break;
-    case 7:
-      break;
-    case 8:
-      break;
-    case 9:
-      break;
-    case 10:
-      break;
-    case 11:
       pattern5();
       break;
-    case 12:
+    case 4:
+      pattern6();
       break;
-    case 13:
+    case 5:
+      pattern7();
       break;
-    case 14:
+    case 6:
+      pattern8();
       break;
-    case 15:
-      break;
-    case 16:
-      break;
-    case 17:
-      pattern6(ORANGE);
-      break;
-    case 18:
-      pattern7(ORANGE);
-      break;
-    case 19:
-      pattern8(RED);
-      break;
-    case 20:
-      pattern8(GREEN);
-      break;
-    case 21:
-      pattern8(BLUE);
-      break;
-    case 22:
-      pattern8(ATTRACTIVE_PURPLE);
-      break;
-    case 23:
-      pattern8(CYAN);
-      break;
-    case 24:
-      pattern8(YELLOW);
-      break;
-    case 25:
-      pattern9(RED);
-      break;
-    case 26:
-      pattern9(GREEN);
-      break;
-    case 27:
-      pattern9(BLUE);
-      break;
-    case 28:
-      pattern9(ATTRACTIVE_PURPLE);
-      break;
-    case 29:
-      pattern9(CYAN);
-      break;
-    case 30:
-      pattern9(YELLOW);
+    case 7:
+      pattern9();
       break;
   }
 }
@@ -685,6 +629,7 @@ void pattern0(uint32_t patternColors[], int numPatternColors) {
       patternColumn[j] = patternColors[i];
     }
     showColumn();
+    delay(POVSpeedDelay);
   }
 }
 
@@ -698,21 +643,15 @@ void pattern1(uint8_t msDelay) {
   
   int numColors = getNumColors();
   bool isPOVColor = isPOVColorIndex(selectedPatternColorIdx);
-  int colorIterations = 1;
-
-  // If we have a POV color, we need to flash the pattern twice to show each color  
-  if (isPOVColor) {
-    colorIterations = 2;
-  }
+  int colorIterations = isPOVColor ? 2 : 1; // 2 colors for POV
+  uint32_t color;
 
   for (int c=0; c < colorIterations; c++) {
+    // Get the color
+    color = isPOVColor ? COLORS[ COLORS_POV[selectedPatternColorIdx - numColors][c] ] : COLORS[selectedPatternColorIdx];
+
     for (uint8_t i=0; i <= pat_i_0; i++) {
-      if (isPOVColor) {
-        // get the first then second color in the POV color
-        patternColumn[i] = COLORS[ COLORS_POV[selectedPatternColorIdx - numColors][c] ];
-      } else {
-        patternColumn[i] = COLORS[selectedPatternColorIdx];
-      }
+      patternColumn[i] = color;
     }
 
     // Insert POV delay if POV color
@@ -894,12 +833,8 @@ void pattern4() {
 void pattern5() {
   int numColors = getNumColors();
   bool isPOVColor = isPOVColorIndex(selectedPatternColorIdx);
-  int colorIterations = 1;
-
-  // If we have a POV color, we need to flash the pattern twice to show each color  
-  if (isPOVColor) {
-    colorIterations = 2;
-  }
+  int colorIterations = isPOVColor ? 2 : 1; // 2 colors for POV
+  uint32_t color;
 
   if (patDirection == 0) {
     // Reset indexes when needed
@@ -912,15 +847,13 @@ void pattern5() {
     }
   
     for (int c=0; c < colorIterations; c++) {
+      // Get the color
+      color = isPOVColor ? COLORS[ COLORS_POV[selectedPatternColorIdx - numColors][c] ] : COLORS[selectedPatternColorIdx];
+
       // Make a single pixel travel down the stick
       for (int travel_i = 0; travel_i < pat_i_0; travel_i++) {
         if (travel_i == pat_i_1) {
-          if (isPOVColor) {
-            // get the first then second color in the POV color
-            patternColumn[travel_i] = COLORS[ COLORS_POV[selectedPatternColorIdx - numColors][c] ];
-          } else {
-            patternColumn[travel_i] = COLORS[selectedPatternColorIdx];
-          }
+          patternColumn[travel_i] = color;
         } else {
           patternColumn[travel_i] = BLACK;
         }
@@ -928,12 +861,7 @@ void pattern5() {
     
       // Turn on the lit pixels
       for (int lit_i = pat_i_0; lit_i < strip.numPixels(); lit_i++) {
-        if (isPOVColor) {
-          // get the first then second color in the POV color
-          patternColumn[lit_i] = COLORS[ COLORS_POV[selectedPatternColorIdx - numColors][c] ];
-        } else {
-          patternColumn[lit_i] = COLORS[selectedPatternColorIdx];
-        }
+        patternColumn[lit_i] = color;
       }
       
       // Insert POV delay if POV color
@@ -997,7 +925,12 @@ void pattern5() {
   }
 }
 
-void pattern6(uint32_t color) {
+void pattern6() {
+  int numColors = getNumColors();
+  bool isPOVColor = isPOVColorIndex(selectedPatternColorIdx);
+  int colorIterations = isPOVColor ? 2 : 1; // 2 colors for POV
+  uint32_t color;
+
   // select a new random amount number to build up to
   if (patternChanged || patternComplete) {
     pat_i_0 = random(5, strip.numPixels());
@@ -1006,16 +939,27 @@ void pattern6(uint32_t color) {
     patternReverse = false;
   }
 
-  // Light the pixels one at a time so it looks like they are building up
-  // Turn on the lit pixels
-  for (int i = 0; i < strip.numPixels(); i++) {
-    if (i <= pat_i_1) {
-      patternColumn[i] = color;
-    } else {
-      patternColumn[i] = BLACK;
+  for (int c=0; c < colorIterations; c++) {
+    // Get the color
+    color = isPOVColor ? COLORS[ COLORS_POV[selectedPatternColorIdx - numColors][c] ] : COLORS[selectedPatternColorIdx];
+
+    // Light the pixels one at a time so it looks like they are building up
+    // Turn on the lit pixels
+    for (int i = 0; i < strip.numPixels(); i++) {
+      if (i <= pat_i_1) {
+        patternColumn[i] = color;
+      } else {
+        patternColumn[i] = BLACK;
+      }
     }
+
+    // Insert POV delay if POV color
+    if (isPOVColor) {
+      delay(POVSpeedDelay);
+    }
+
+    showColumn();
   }
-  showColumn();
   
   if (!patternReverse) {
     pat_i_1++;
@@ -1039,7 +983,12 @@ void pattern6(uint32_t color) {
   }
 }
 
-void pattern7(uint32_t color) {
+void pattern7() {
+  int numColors = getNumColors();
+  bool isPOVColor = isPOVColorIndex(selectedPatternColorIdx);
+  int colorIterations = isPOVColor ? 2 : 1; // 2 colors for POV
+  uint32_t color;
+  
   int minPixel_i = 4;
   int patIncrement = 2;
   
@@ -1052,23 +1001,33 @@ void pattern7(uint32_t color) {
     patternReverse = false;
   }
 
-  // Light the pixels one at a time so it looks like they are building up
-  // Turn on the lit pixels
-  for (int i = 0; i < strip.numPixels(); i += patIncrement) {
-    if (i <= pat_i_1) {
-      patternColumn[i] = color;
+  for (int c=0; c < colorIterations; c++) {
+    // Get the color
+    color = isPOVColor ? COLORS[ COLORS_POV[selectedPatternColorIdx - numColors][c] ] : COLORS[selectedPatternColorIdx];
 
-      if (i+1 < strip.numPixels()) {
-        patternColumn[i+1] = color;
-      }
-    } else {
-      patternColumn[i] = BLACK;
-      if (i+1 < strip.numPixels()) {
-        patternColumn[i+1] = BLACK;
+    // Light the pixels one at a time so it looks like they are building up
+    // Turn on the lit pixels
+    for (int i = 0; i < strip.numPixels(); i += patIncrement) {
+      if (i <= pat_i_1) {
+        patternColumn[i] = color;
+
+        if (i+1 < strip.numPixels()) {
+          patternColumn[i+1] = color;
+        }
+      } else {
+        patternColumn[i] = BLACK;
+        if (i+1 < strip.numPixels()) {
+          patternColumn[i+1] = BLACK;
+        }
       }
     }
+
+    // Insert POV delay if POV color
+    if (isPOVColor) {
+      delay(POVSpeedDelay);
+    }
+    showColumn();
   }
-  showColumn();
   
   if (!patternReverse) {
     if (pat_i_1 + patIncrement < strip.numPixels()) {
@@ -1096,9 +1055,14 @@ void pattern7(uint32_t color) {
 }
 
 // Pulsating glow effect
-void pattern8(uint32_t color) {
+void pattern8() {
   // NOTE: In order to change the top-end brightness of this pattern, user
   // must switch to a different pattern, change the brightness, and then switch back.
+
+  int numColors = getNumColors();
+  bool isPOVColor = isPOVColorIndex(selectedPatternColorIdx);
+  int colorIterations = isPOVColor ? 2 : 1; // 2 colors for POV
+  uint32_t color;
 
   uint8_t minPatternBrightness = 10;
   int numRepeats = 8;
@@ -1113,12 +1077,23 @@ void pattern8(uint32_t color) {
     tempSavedBrightness = pat_i_0;
   }
 
-  // Light the pixels
-  for (int i = 0; i < strip.numPixels(); i++) {
-    patternColumn[i] = color;
+  for (int c=0; c < colorIterations; c++) {
+    // Get the color
+    color = isPOVColor ? COLORS[ COLORS_POV[selectedPatternColorIdx - numColors][c] ] : COLORS[selectedPatternColorIdx];
+    
+    // Light the pixels
+    for (int i = 0; i < strip.numPixels(); i++) {
+      patternColumn[i] = color;
+    }
+    strip.setBrightness(pat_i_1);
+
+    // Insert POV delay if POV color
+    if (isPOVColor) {
+      delay(POVSpeedDelay);
+    }
+
+    showColumn();
   }
-  strip.setBrightness(pat_i_1);
-  showColumn();
 
   // Oscillate brightness from min to max
   if (!patternReverse) {
@@ -1171,7 +1146,12 @@ void pattern8(uint32_t color) {
 }
 
 // Twinkle effect
-void pattern9(uint32_t color) {
+void pattern9() {
+  int numColors = getNumColors();
+  bool isPOVColor = isPOVColorIndex(selectedPatternColorIdx);
+  int colorIterations = isPOVColor ? 2 : 1; // 2 colors for POV
+  uint32_t color;
+  
   // group the lights into groups of 15
   int groupSize = 15;
   int pixel_i = 0;
@@ -1181,33 +1161,46 @@ void pattern9(uint32_t color) {
     rand_i_2;
   int slowDownCycles = 5;
 
+/*
   if (pat_i_0 < slowDownCycles) {
     pat_i_0++;
     showColumn();
     return;
   } else {
     pat_i_0 = 0;
-  }
+  }  
+*/
 
-  // Light 3 random pixels out of every group of 15
-  while (pixel_i < strip.numPixels()) {
-    // Get the indexes of the randomly chosen pixels in the group
-    if (pixel_i % groupSize == 0) {
-      rand_i_0 = random(pixel_i, pixel_i + groupSize);
-      rand_i_1 = random(pixel_i, pixel_i + groupSize);
-      rand_i_2 = random(pixel_i, pixel_i + groupSize);
-      
-      group_i++;
+  for (int c=0; c < colorIterations; c++) {
+    // Get the color
+    color = isPOVColor ? COLORS[ COLORS_POV[selectedPatternColorIdx - numColors][c] ] : COLORS[selectedPatternColorIdx];
+
+    // Light 3 random pixels out of every group of 15
+    while (pixel_i < strip.numPixels()) {
+      // Get the indexes of the randomly chosen pixels in the group
+      if (pixel_i % groupSize == 0) {
+        rand_i_0 = random(pixel_i, pixel_i + groupSize);
+        rand_i_1 = random(pixel_i, pixel_i + groupSize);
+        rand_i_2 = random(pixel_i, pixel_i + groupSize);
+        
+        group_i++;
+      }
+
+      if (pixel_i == rand_i_0 || pixel_i == rand_i_1 || pixel_i == rand_i_2) {
+        patternColumn[pixel_i] = color;
+      } else {
+        patternColumn[pixel_i] = BLACK;
+      }
+      pixel_i++;
     }
 
-    if (pixel_i == rand_i_0 || pixel_i == rand_i_1 || pixel_i == rand_i_2) {
-      patternColumn[pixel_i] = color;
-    } else {
-      patternColumn[pixel_i] = BLACK;
+    // Insert POV delay if POV color
+    if (isPOVColor) {
+      delay(POVSpeedDelay);
     }
-    pixel_i++;
+
+    showColumn();
   }
-  showColumn();
 }
 
 void setAllPixels(uint32_t color) {
