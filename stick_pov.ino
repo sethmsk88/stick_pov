@@ -396,7 +396,9 @@ void nextPattern() {
     selectedPatternIdx = 0;
   }
   resetIndexesFlags();
-  saveBrightness();
+  saveBrightness(); // save stick brightness if it has changed
+
+  Serial.println("selectedPatternIdx = " + (String)selectedPatternIdx); // DEBUG
 }
 
 void prevPattern() {
@@ -406,7 +408,7 @@ void prevPattern() {
     selectedPatternIdx = numPatterns - 1;
   }
   resetIndexesFlags();
-  saveBrightness();
+  saveBrightness(); // save stick brightness if it has changed
 }
 
 // Increase brightness of pixels
@@ -549,9 +551,6 @@ void debugPatternColumn() {
 // Show the pattern that is currently selected
 void showPattern() {
   uint32_t colorSet_0[] = {PURPLE, BLUE, GREEN, RED, PINK, ORANGE, YELLOW};
-  uint32_t colorSet_1[] = {RED, GREEN};
-  uint32_t colorSet_2[] = {RED, BLUE};
-  uint32_t colorSet_3[] = {BLUE, GREEN};
 
   int colorIndexes[] = {0, 1};
   
@@ -579,13 +578,10 @@ void showPattern() {
     case 7:
       break;
     case 8:
-      pattern0(colorSet_1, (sizeof(colorSet_1) / sizeof(uint32_t)));
       break;
     case 9:
-      pattern0(colorSet_2, (sizeof(colorSet_2) / sizeof(uint32_t)));
       break;
     case 10:
-      pattern0(colorSet_3, (sizeof(colorSet_3) / sizeof(uint32_t)));
       break;
     case 11:
       pattern5(RED);
@@ -705,26 +701,6 @@ void pattern1(uint8_t msDelay) {
     }
     delay(msDelay); // delay to slow down the pattern animation
   }
-/*
-  // If a pattern animation should only run once (e.g. Color Wipe)
-  if (patternChanged || !patternComplete) {
-    patternChanged = false;
-
-    // fill up to the pattern index
-    for (uint8_t i=0; i <= pat_i_0; i++) {
-      patternColumn[i] = color;
-    }
-    pat_i_0++; // increase pattern index
-
-    // Check to see if pattern is complete
-    if (pat_i_0 == strip.numPixels()) {
-      patternComplete = true;
-    }
-    
-    delay(msDelay);    
-  }
-  showColumn();
-*/
 }
 
 // Displays diamonds
@@ -885,6 +861,15 @@ void pattern4() {
 }
 
 void pattern5(uint32_t color) {
+  int numColors = getNumColors();
+  bool isPOVColor = isPOVColorIndex(selectedPatternColorIdx);
+  int colorIterations = 1;
+
+  // If we have a POV color, we need to flash the pattern twice to show each color  
+  if (isPOVColor) {
+    colorIterations = 2;
+  }
+
   if (patDirection == 0) {
     // Reset indexes when needed
     if (pat_i_0 == 0) {
@@ -895,21 +880,34 @@ void pattern5(uint32_t color) {
       pat_i_1 = 0;
     }
   
-    // Make a single pixel travel down the stick
-    for (int travel_i = 0; travel_i < pat_i_0; travel_i++) {
-      if (travel_i == pat_i_1) {
-        patternColumn[travel_i] = color;
-      } else {
-        patternColumn[travel_i] = BLACK;
+    for (int c=0; c < colorIterations; c++) {
+      // Make a single pixel travel down the stick
+      for (int travel_i = 0; travel_i < pat_i_0; travel_i++) {
+        if (travel_i == pat_i_1) {
+          if (isPOVColor) {
+            // get the first then second color in the POV color
+            patternColumn[travel_i] = COLORS[ COLORS_POV[selectedPatternColorIdx - numColors][c] ];
+          } else {
+            patternColumn[travel_i] = COLORS[selectedPatternColorIdx];
+          }
+        } else {
+          patternColumn[travel_i] = BLACK;
+        }
       }
-    }
-  
-    // Turn on the lit pixels
-    for (int lit_i = pat_i_0; lit_i < strip.numPixels(); lit_i++) {
-      patternColumn[lit_i] = color;
-    }
     
-    showColumn();
+      // Turn on the lit pixels
+      for (int lit_i = pat_i_0; lit_i < strip.numPixels(); lit_i++) {
+        if (isPOVColor) {
+          // get the first then second color in the POV color
+          patternColumn[lit_i] = COLORS[ COLORS_POV[selectedPatternColorIdx - numColors][c] ];
+        } else {
+          patternColumn[lit_i] = COLORS[selectedPatternColorIdx];
+        }
+      }
+      
+      showColumn();
+    }
+
     pat_i_1++;
   } else {
     // Reset indexes when needed
@@ -926,21 +924,34 @@ void pattern5(uint32_t color) {
       pat_i_1 = strip.numPixels() - 1;
     }
   
-    // Make a single pixel travel down the stick
-    for (int travel_i = strip.numPixels() - 1; travel_i > pat_i_0; travel_i--) {
-      if (travel_i == pat_i_1) {
-        patternColumn[travel_i] = color;
-      } else {
-        patternColumn[travel_i] = BLACK;
+    for (int c=0; c < colorIterations; c++) {
+      // Make a single pixel travel down the stick
+      for (int travel_i = strip.numPixels() - 1; travel_i > pat_i_0; travel_i--) {
+        if (travel_i == pat_i_1) {
+          if (isPOVColor) {
+            // get the first then second color in the POV color
+            patternColumn[travel_i] = COLORS[ COLORS_POV[selectedPatternColorIdx - numColors][c] ];
+          } else {
+            patternColumn[travel_i] = COLORS[selectedPatternColorIdx];
+          }
+        } else {
+          patternColumn[travel_i] = BLACK;
+        }
       }
-    }
-  
-    // Turn on the lit pixels
-    for (int lit_i = pat_i_0; lit_i >= 0; lit_i--) {
-      patternColumn[lit_i] = color;
+    
+      // Turn on the lit pixels
+      for (int lit_i = pat_i_0; lit_i >= 0; lit_i--) {
+        if (isPOVColor) {
+          // get the first then second color in the POV color
+          patternColumn[lit_i] = COLORS[ COLORS_POV[selectedPatternColorIdx - numColors][c] ];
+        } else {
+          patternColumn[lit_i] = COLORS[selectedPatternColorIdx];
+        }
+      }
+      
+      showColumn();
     }
     
-    showColumn();
     pat_i_1--;
   }
 }
