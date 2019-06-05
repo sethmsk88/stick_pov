@@ -15,15 +15,15 @@
 // Each favorite saves two bytes worth of info, so each is allocated two addresses
 // First address contains the index of the saved pattern
 // Second address contains the speed delay of the saved pattern
-// TODO: Give these memory addres variables a suffix like "ADDR"
+// Third address contains the color for the saved pattern
 const uint16_t FAV_0_ADDR = 0;
-const uint16_t FAV_1_ADDR = 2;
-const uint16_t FAV_2_ADDR = 4;
-const uint16_t FAV_3_ADDR = 6;
-const uint16_t FAV_4_ADDR = 8;
-const uint16_t NUM_LEDS_SAVED_ADDR = 10;
-const uint16_t BRIGHTNESS_SAVED_ADDR = 11;
-const uint16_t LAST_PATTERN_SAVED_ADDR = 12; // NOT BEING USED - Only needs one byte, so one address
+const uint16_t FAV_1_ADDR = 3;
+const uint16_t FAV_2_ADDR = 6;
+const uint16_t FAV_3_ADDR = 9;
+const uint16_t FAV_4_ADDR = 12;
+const uint16_t NUM_LEDS_SAVED_ADDR = 15;
+const uint16_t BRIGHTNESS_SAVED_ADDR = 16;
+const uint16_t LAST_PATTERN_SAVED_ADDR = 17; // NOT BEING USED - Only needs one byte, so one address
 
 const uint32_t BLACK = 0x000000; // GRB
 const uint32_t RED = 0x00FF00;
@@ -116,30 +116,34 @@ void incrementLEDCount() {
 
   // Save number of LEDs to non-volatile memory
   EEPROM.update(NUM_LEDS_SAVED_ADDR, (uint8_t)strip.numPixels());
+
+  Serial.println("Num LEDs: " + (String)strip.numPixels());
 }
 
 void decrementLEDCount() {
-  if (strip.numPixels() <= 1) {
-    strip.updateLength(1); // Don't ever turn off all LEDs. This could be confusing to the User
+  int minNumPixels = 5; // setting min number of pixels to 5, because their is a weird bug below 5
+  
+  if (strip.numPixels() <= minNumPixels) {
+    strip.updateLength(minNumPixels); // Don't ever turn off all LEDs. This could be confusing to the User
   } else {
     // Turn off highest LED
     patternColumn[strip.numPixels() - 1] = BLACK;
     showColumn();
     
     strip.updateLength(strip.numPixels() - 1);
-    // Serial.println("Num LEDS: " + (String)strip.numPixels());
   }  
   strip.show();
 
-  // Serial.println("Saving number of LEDs " + (String)strip.numPixels());
-
   // Save number of LEDs to non-volatile memory
   EEPROM.update(NUM_LEDS_SAVED_ADDR, (uint8_t)strip.numPixels());
+
+  Serial.println("Num LEDs: " + (String)strip.numPixels());
 }
 
 void applySavedSettings() {
   int patternIndex_addr;
   int speedDelay_addr;
+  int patternColorIndex_addr;
   int unsetVal = 255; // the number stored at an address that is unset
   
   // if favorites have not yet been saved, set them to 0
@@ -147,16 +151,19 @@ void applySavedSettings() {
   for (int i=0; i < numFavorites; i++) {
     patternIndex_addr = getFavoriteAddr(i, 0); // Load pattern for this favorite
     speedDelay_addr = getFavoriteAddr(i, 1); // Load speed delay for this favorite
+    patternColorIndex_addr = getFavoriteAddr(i, 2); // Load color index for this favorite
 
     if (EEPROM.read(patternIndex_addr) == unsetVal) {
       EEPROM.update(patternIndex_addr, 0);
       EEPROM.update(speedDelay_addr, 0);
+      EEPROM.update(patternColorIndex_addr, 0);
     }
   }
 
   // Reset EEPROM values - ONLY RUN ONCE
   // ONLY activate this if the usage of memory addresses has changed in the EEPROM
-  // for (int i=0; i < 22; i++) {
+    // int numMemAddressesUsed = 18;
+  // for (int i=0; i < numMemAddressesUsed; i++) {
   //   EEPROM.update(i, 255);
   // }
 
@@ -180,9 +187,11 @@ void setFavorite(uint8_t i) {
   
   int patternIndex_addr = getFavoriteAddr(i, 0);
   int speedDelay_addr = getFavoriteAddr(i, 1);
+  int patternColorIndex_addr = getFavoriteAddr(i, 2);
   
   EEPROM.update(patternIndex_addr, selectedPatternIdx);
   EEPROM.update(speedDelay_addr, speedDelay);
+  EEPROM.update(patternColorIndex_addr, selectedPatternColorIdx);
 
   alertUser();
 
@@ -193,16 +202,18 @@ void setFavorite(uint8_t i) {
 void getFavorite(uint8_t i) {
   int patternIndex_addr = getFavoriteAddr(i, 0);
   int speedDelay_addr = getFavoriteAddr(i, 1);
+  int patternColorIndex_addr = getFavoriteAddr(i, 2);
   
   selectedPatternIdx = EEPROM.read(patternIndex_addr);
   speedDelay = EEPROM.read(speedDelay_addr);
+  selectedPatternColorIdx = EEPROM.read(patternColorIndex_addr);
   
   resetIndexesFlags();
 }
 
 // Get address of favorite in EEPROM
 // fav_i - Favorite number (0 - 4)
-// attr_i - index of the favorite attribute (0 - 1)
+// attr_i - index of the favorite attribute (0 - 2)
 int getFavoriteAddr(int fav_i, int attr_i) {
   switch (fav_i) {
     case 0:
