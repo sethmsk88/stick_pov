@@ -61,6 +61,7 @@ uint16_t pat_i_2 = 0; // another index to track progress of a pattern
 uint8_t speedDelay = 0; // ms of delay between showing columns
 uint8_t maxSpeedDelay = 45;
 const int POVSpeedDelayDefault = 16;
+const int POVSpeedDelay = 16;
 uint8_t speedIncrement = 1;
 uint32_t lastButtonPress = 0;
 uint32_t pendingButtonPress = 0; // IR value for button press
@@ -501,11 +502,6 @@ void changeColor(int colorIndexModifier) {
     selectedPatternColorIdx = 0;
   }
 
-  // If color is POV, slow down the pattern speed
-  if (isPOVColorIndex(selectedPatternColorIdx)) {
-    speedDelay = POVSpeedDelayDefault;
-  }
-
   resetIndexesFlags();
 }
 
@@ -584,22 +580,17 @@ void showPattern() {
     case 10:
       break;
     case 11:
-      pattern5(RED);
+      pattern5();
       break;
     case 12:
-      pattern5(GREEN);
       break;
     case 13:
-      pattern5(BLUE);
       break;
     case 14:
-      pattern5(ATTRACTIVE_PURPLE);
       break;
     case 15:
-      pattern5(CYAN);
       break;
     case 16:
-      pattern5(YELLOW);
       break;
     case 17:
       pattern6(ORANGE);
@@ -689,6 +680,12 @@ void pattern1(uint8_t msDelay) {
         patternColumn[i] = COLORS[selectedPatternColorIdx];
       }
     }
+
+    // Insert POV delay if POV color
+    if (isPOVColor) {
+      delay(POVSpeedDelay);
+    }
+
     showColumn();
   }
 
@@ -860,7 +857,7 @@ void pattern4() {
   }
 }
 
-void pattern5(uint32_t color) {
+void pattern5() {
   int numColors = getNumColors();
   bool isPOVColor = isPOVColorIndex(selectedPatternColorIdx);
   int colorIterations = 1;
@@ -905,6 +902,11 @@ void pattern5(uint32_t color) {
         }
       }
       
+      // Insert POV delay if POV color
+      if (isPOVColor) {
+        delay(POVSpeedDelay);
+      }
+
       showColumn();
     }
 
@@ -949,9 +951,14 @@ void pattern5(uint32_t color) {
         }
       }
       
+      // Insert POV delay if POV color
+      if (isPOVColor) {
+        delay(POVSpeedDelay);
+      }
+
       showColumn();
     }
-    
+
     pat_i_1--;
   }
 }
