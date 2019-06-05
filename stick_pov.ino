@@ -60,6 +60,7 @@ uint16_t pat_i_1 = 0; // another index to track progress of a pattern
 uint16_t pat_i_2 = 0; // another index to track progress of a pattern
 uint8_t speedDelay = 0; // ms of delay between showing columns
 uint8_t maxSpeedDelay = 45;
+const int POVSpeedDelayDefault = 16;
 uint8_t speedIncrement = 1;
 uint32_t lastButtonPress = 0;
 uint32_t pendingButtonPress = 0; // IR value for button press
@@ -90,6 +91,9 @@ void setup() {
 
   applySavedSettings();
   strip = Adafruit_NeoPixel(numLEDs, DATA_PIN, NEO_GRB + NEO_KHZ800);
+
+  getFavorite(0); // Set stick to HOME pattern
+
   strip.begin();
   strip.setBrightness(defaultBrightness);
   strip.show();
@@ -495,24 +499,23 @@ void changeColor(int colorIndexModifier) {
     selectedPatternColorIdx = 0;
   }
 
-  // Start DEBUG
-
-  // Serial.println("POV yellow: " + (String)COLORS_POV[12][0] + " and " + (String)COLORS_POV[12][1]);
-  // Serial.println("POV cyan: " + (String)COLORS_POV[13][0] + " and " + (String)COLORS_POV[13][1]);
-  // Serial.println("POV magenta: " + (String)COLORS_POV[14][0] + " and " + (String)COLORS_POV[14][1]);
-
-  if (selectedPatternColorIdx > 11) {
-    Serial.print("POV Color: ");
-    Serial.print(COLORS_POV[selectedPatternColorIdx - numColors][0], HEX);
-    Serial.print(" and ");
-    Serial.println(COLORS_POV[selectedPatternColorIdx - numColors][1], HEX);
-  } else {
-    Serial.print("Color: ");
-    Serial.println(COLORS[selectedPatternColorIdx], HEX);
+  // If color is POV, slow down the pattern speed
+  if (isPOVColorIndex(selectedPatternColorIdx)) {
+    speedDelay = POVSpeedDelayDefault;
   }
-  // End DEBUG
 
   resetIndexesFlags();
+}
+
+// Returns TRUE if the selected pattern color index is one of the POV color indexes, else returns FALSE
+bool isPOVColorIndex(int idx) {
+  int numColors = sizeof(COLORS) / sizeof(*COLORS);
+  return idx >= numColors ? true : false;
+}
+
+// Returns the number of colors in the COLORS array
+int getNumColors() {
+  return sizeof(COLORS) / sizeof(*COLORS);
 }
 
 // Set the all pixels on the strip to the values in the patternColumn array
@@ -672,14 +675,12 @@ void pattern1(uint8_t msDelay) {
     // setAllPixels(BLACK);
   }
   
-  // get number of colors for the selectedPatternColorIdx
-  int numColors = sizeof(COLORS) / sizeof(*COLORS);
-  int numPOVColors = sizeof(COLORS_POV) / sizeof(*COLORS_POV);
-  bool isPOVColor = false;
+  int numColors = getNumColors();
+  bool isPOVColor = isPOVColorIndex(selectedPatternColorIdx);
   int colorIterations = 1;
-  if (selectedPatternColorIdx >= numColors) {
-    // it is a POV color
-    isPOVColor = true;
+
+  // If we have a POV color, we need to flash the pattern twice to show each color  
+  if (isPOVColor) {
     colorIterations = 2;
   }
 
@@ -689,7 +690,7 @@ void pattern1(uint8_t msDelay) {
         // get the first then second color in the POV color
         patternColumn[i] = COLORS[ COLORS_POV[selectedPatternColorIdx - numColors][c] ];
       } else {
-        patternColumn[i] = COLORS[selectedPatternColorIdx - numColors];
+        patternColumn[i] = COLORS[selectedPatternColorIdx];
       }
     }
     showColumn();
