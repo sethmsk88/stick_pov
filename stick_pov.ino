@@ -26,17 +26,21 @@ const uint16_t BRIGHTNESS_SAVED_ADDR = 11;
 const uint16_t LAST_PATTERN_SAVED_ADDR = 12; // NOT BEING USED - Only needs one byte, so one address
 
 const uint32_t BLACK = 0x000000; // GRB
-const uint32_t PURPLE = 0x008080;
-const uint32_t BLUE = 0x0000FF;
-const uint32_t GREEN = 0x800000;
 const uint32_t RED = 0x00FF00;
-const uint32_t PINK = 0xC0FFCB;
-const uint32_t ORANGE = 0x90FF00;
+const uint32_t GREEN = 0x800000;
+const uint32_t BLUE = 0x0000FF;
 const uint32_t YELLOW = 0xFFFF00;
+const uint32_t CYAN = 0x9900FF;
+const uint32_t MAGENTA = 0x00FFFF;
+const uint32_t PURPLE = 0x008080;
+const uint32_t ATTRACTIVE_PURPLE = 0x004d99;
 const uint32_t VIOLET = 0x0094D3;
 const uint32_t INDIGO = 0x004B82;
-const uint32_t ATTRACTIVE_PURPLE = 0x004d99;
-const uint32_t CYAN = 0x9900ff;
+const uint32_t PINK = 0xC0FFCB;
+const uint32_t ORANGE = 0x90FF00;
+
+const uint32_t COLORS[] = {RED, GREEN, BLUE, YELLOW, CYAN, MAGENTA, PURPLE, ATTRACTIVE_PURPLE, VIOLET, INDIGO, PINK, ORANGE};
+const int COLORS_POV[][2] = {{0,1},{0,2},{1,2}}; // combinations of color indexes for POV
 
 uint8_t defaultBrightness = 160;//105; // Default is set to 50% of the brightness range
 const uint8_t maxBrightness = 230; // 90% of 255
@@ -46,7 +50,8 @@ uint8_t numLEDs = 50;
 const uint8_t maxLEDs = 100;
 
 uint32_t patternColumn[maxLEDs] = {};
-int selectedPattern = 0;
+int selectedPatternIdx = 0; // defaul pattern index
+int selectedPatternColorIdx = 0; // default color index
 uint8_t numPatterns = 31;
 boolean patternChanged = true;
 boolean patternComplete = false; // used when a pattern should only show once
@@ -162,7 +167,7 @@ void applySavedSettings() {
 
 // Save a favorite
 void setFavorite(uint8_t i) {
-  if (selectedPattern < 0) {
+  if (selectedPatternIdx < 0) {
     Serial.println("ERROR: Cannot save a pattern favorite whose index is negative");
     return;
   }
@@ -170,7 +175,7 @@ void setFavorite(uint8_t i) {
   int patternIndex_addr = getFavoriteAddr(i, 0);
   int speedDelay_addr = getFavoriteAddr(i, 1);
   
-  EEPROM.update(patternIndex_addr, selectedPattern);
+  EEPROM.update(patternIndex_addr, selectedPatternIdx);
   EEPROM.update(speedDelay_addr, speedDelay);
 
   alertUser();
@@ -183,7 +188,7 @@ void getFavorite(uint8_t i) {
   int patternIndex_addr = getFavoriteAddr(i, 0);
   int speedDelay_addr = getFavoriteAddr(i, 1);
   
-  selectedPattern = EEPROM.read(patternIndex_addr);
+  selectedPatternIdx = EEPROM.read(patternIndex_addr);
   speedDelay = EEPROM.read(speedDelay_addr);
   
   resetIndexesFlags();
@@ -302,25 +307,25 @@ void checkButtonPress() {
         break;
       case RemoteControlRoku::BTN_LEFT:
       case RemoteControlRoku::BTN_LEFT_HOLD:
-        decreaseSpeed();
+        changeColor(-1); // Change pattern to prev color
         break;
       case RemoteControlRoku::BTN_RIGHT:
       case RemoteControlRoku::BTN_RIGHT_HOLD:
-        increaseSpeed();
+        changeColor(1); // Change pattern to next color
         break;
       case RemoteControlRoku::BTN_POWER:
         // Power button OFF turns all pixels off
         // Power button ON set stick to HOME favorite mode
-        if (selectedPattern > -1) {
-          selectedPattern = -1;
+        if (selectedPatternIdx > -1) {
+          selectedPatternIdx = -1;
         } else {
           getFavorite(0); // Set to HOME
         }
         break;
-      case RemoteControlRoku::BTN_FASTFORWARD:
+      case RemoteControlRoku::BTN_ASTERISK:
         incrementLEDCount();
         break;
-      case RemoteControlRoku::BTN_REWIND:
+      case RemoteControlRoku::BTN_ASTERISK_HOLD:
         decrementLEDCount();
         break;
       case RemoteControlRoku::BTN_HOME:
@@ -364,6 +369,14 @@ void checkButtonPress() {
       case RemoteControlRoku::BTN_RETURN:
         changeDirection();
         break;
+      case RemoteControlRoku::BTN_FASTFORWARD:
+      case RemoteControlRoku::BTN_FASTFORWARD_HOLD:
+        increaseSpeed();
+        break;
+      case RemoteControlRoku::BTN_REWIND:
+      case RemoteControlRoku::BTN_REWIND_HOLD:
+        decreaseSpeed();
+        break;
     }
 
     pendingButtonPress = 0; // clear value
@@ -373,20 +386,20 @@ void checkButtonPress() {
 }
 
 void nextPattern() {
-  if (selectedPattern < numPatterns - 1) {
-    selectedPattern++;
+  if (selectedPatternIdx < numPatterns - 1) {
+    selectedPatternIdx++;
   } else {
-    selectedPattern = 0;
+    selectedPatternIdx = 0;
   }
   resetIndexesFlags();
   saveBrightness();
 }
 
 void prevPattern() {
-  if (selectedPattern > 0) {
-    selectedPattern--;
+  if (selectedPatternIdx > 0) {
+    selectedPatternIdx--;
   } else {
-    selectedPattern = numPatterns - 1;
+    selectedPatternIdx = numPatterns - 1;
   }
   resetIndexesFlags();
   saveBrightness();
@@ -469,6 +482,39 @@ void changeDirection() {
   resetIndexesFlags();
 }
 
+// Change color of pattern if it can be manually changed
+void changeColor(int colorIndexModifier) {
+  int numColors = sizeof(COLORS) / sizeof(*COLORS);
+  int numPOVColors = sizeof(COLORS_POV) / sizeof(*COLORS_POV);
+  selectedPatternColorIdx += colorIndexModifier;
+
+  // Wrap around pattern color indexes
+  if (selectedPatternColorIdx < 0) {
+    selectedPatternColorIdx = numColors + numPOVColors - 1;
+  } else if (selectedPatternColorIdx >= numColors + numPOVColors) {
+    selectedPatternColorIdx = 0;
+  }
+
+  // Start DEBUG
+
+  // Serial.println("POV yellow: " + (String)COLORS_POV[12][0] + " and " + (String)COLORS_POV[12][1]);
+  // Serial.println("POV cyan: " + (String)COLORS_POV[13][0] + " and " + (String)COLORS_POV[13][1]);
+  // Serial.println("POV magenta: " + (String)COLORS_POV[14][0] + " and " + (String)COLORS_POV[14][1]);
+
+  if (selectedPatternColorIdx > 11) {
+    Serial.print("POV Color: ");
+    Serial.print(COLORS_POV[selectedPatternColorIdx - numColors][0], HEX);
+    Serial.print(" and ");
+    Serial.println(COLORS_POV[selectedPatternColorIdx - numColors][1], HEX);
+  } else {
+    Serial.print("Color: ");
+    Serial.println(COLORS[selectedPatternColorIdx], HEX);
+  }
+  // End DEBUG
+
+  resetIndexesFlags();
+}
+
 // Set the all pixels on the strip to the values in the patternColumn array
 // and then show the pixels
 void showColumn() {
@@ -503,8 +549,10 @@ void showPattern() {
   uint32_t colorSet_1[] = {RED, GREEN};
   uint32_t colorSet_2[] = {RED, BLUE};
   uint32_t colorSet_3[] = {BLUE, GREEN};
+
+  int colorIndexes[] = {0, 1};
   
-  switch (selectedPattern) {
+  switch (selectedPatternIdx) {
     case -1:
       patternOff();
       break;
@@ -515,22 +563,17 @@ void showPattern() {
       pattern0(colorSet_0, (sizeof(colorSet_0) / sizeof(uint32_t)));
       break;
     case 2:
-      pattern1(RED, 5);
+      pattern1(5);
       break;
     case 3:
-      pattern1(GREEN, 5);
       break;
     case 4:
-      pattern1(BLUE, 5);
       break;
     case 5:
-      pattern1(ATTRACTIVE_PURPLE, 5);
       break;
     case 6:
-      pattern1(CYAN, 5);
       break;
     case 7:
-      pattern1(YELLOW, 5);
       break;
     case 8:
       pattern0(colorSet_1, (sizeof(colorSet_1) / sizeof(uint32_t)));
@@ -602,9 +645,6 @@ void showPattern() {
       pattern9(YELLOW);
       break;
   }
-
-//  Serial.print("Free memory = ");
-//  Serial.println(freeMemory());
 }
 
 // Set all pixels to black, so very little power is used
@@ -625,12 +665,46 @@ void pattern0(uint32_t patternColors[], int numPatternColors) {
 }
 
 // Color Wipe
-void pattern1(uint32_t color, uint8_t msDelay) {  
+void pattern1(uint8_t msDelay) {  
   // When we first enter the pattern, turn the stick black
   if (patternChanged) {
-    setAllPixels(BLACK);
+    // NOTE: I turned this off because it was happening on every iteration for some reason
+    // setAllPixels(BLACK);
   }
   
+  // get number of colors for the selectedPatternColorIdx
+  int numColors = sizeof(COLORS) / sizeof(*COLORS);
+  int numPOVColors = sizeof(COLORS_POV) / sizeof(*COLORS_POV);
+  bool isPOVColor = false;
+  int colorIterations = 1;
+  if (selectedPatternColorIdx >= numColors) {
+    // it is a POV color
+    isPOVColor = true;
+    colorIterations = 2;
+  }
+
+  for (int c=0; c < colorIterations; c++) {
+    for (uint8_t i=0; i <= pat_i_0; i++) {
+      if (isPOVColor) {
+        // get the first then second color in the POV color
+        patternColumn[i] = COLORS[ COLORS_POV[selectedPatternColorIdx - numColors][c] ];
+      } else {
+        patternColumn[i] = COLORS[selectedPatternColorIdx - numColors];
+      }
+    }
+    showColumn();
+  }
+
+  if (!patternComplete) {
+    pat_i_0++; // increase pattern index
+    
+    // Check to see if pattern is complete
+    if (pat_i_0 == strip.numPixels()) {
+      patternComplete = true;
+    }
+    delay(msDelay); // delay to slow down the pattern animation
+  }
+/*
   // If a pattern animation should only run once (e.g. Color Wipe)
   if (patternChanged || !patternComplete) {
     patternChanged = false;
@@ -646,9 +720,10 @@ void pattern1(uint32_t color, uint8_t msDelay) {
       patternComplete = true;
     }
     
-    showColumn();
     delay(msDelay);    
   }
+  showColumn();
+*/
 }
 
 // Displays diamonds
