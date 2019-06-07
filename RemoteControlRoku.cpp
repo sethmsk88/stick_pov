@@ -2,6 +2,12 @@
 typedef unsigned int uint16_t;
 typedef bool boolean;
 
+// IMPORTANT NOTE
+// The values for all of the button codes in this class are actually 32-bit values, but I have truncated
+// them to their least significant 16-bits. I was able to do this, because all of the most significant 16-bits
+// are ON.
+// The reason for doing this was to save memory (SRAM).
+
 class RemoteControlRoku
 {
     public:

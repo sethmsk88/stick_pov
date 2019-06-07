@@ -41,11 +41,11 @@ const uint32_t COLORS[] = {
 const uint8_t COLORS_POV[][2] = {{0,1},{0,2},{1,2}}; // combinations of color indexes for POV
 
 uint8_t defaultBrightness = 160;//105; // Default is set to 50% of the brightness range
-uint8_t numLEDs = 50;
-const uint8_t MAX_LEDS = 100;
+uint8_t numLEDs = 53;
+const uint8_t MAX_LEDS = 60;
 
 uint32_t patternColumn[MAX_LEDS] = {};
-int selectedPatternIdx = 0; // defaul pattern index
+int selectedPatternIdx = 0; // default pattern index
 int selectedPatternColorIdx = 0; // default color index
 uint8_t numPatterns = 6;
 boolean patternChanged = true;
@@ -401,6 +401,7 @@ void nextPattern() {
     selectedPatternIdx = 0;
   }
   resetIndexesFlags();
+  changeBrightness(0); // Changing brightness by 0 so that we can make sure the brightness is safe for the new pattern
   saveBrightness(); // save stick brightness if it has changed
 
   // Serial.println("selectedPatternIdx = " + (String)selectedPatternIdx); // DEBUG
@@ -413,7 +414,52 @@ void prevPattern() {
     selectedPatternIdx = numPatterns - 1;
   }
   resetIndexesFlags();
+  changeBrightness(0); // Changing brightness by 0 so that we can make sure the brightness is safe for the new pattern
   saveBrightness(); // save stick brightness if it has changed
+}
+
+// Check to see if the proposed brightness setting is safe for the color
+// This prevents the board from crashing due to power overdraw
+// Note: This function is basing its maximum safe values on no more than 53 lights being lit
+uint8_t makeSafeBrightness(uint8_t brightness, uint8_t colorIdx, int difference) {
+  bool isPOVColor = isPOVColorIndex(colorIdx);
+  uint8_t colorIterations = isPOVColor ? 2 : 1; // 2 colors for POV
+  int numColors = getNumColors();
+  uint8_t maxBrightness = 230; // 90% of 255
+  uint16_t maxColorSum = 255 + 127; // One color full brightness, and a second color at half brightness
+  uint32_t maxBrightnessProduct = ((uint32_t)maxColorSum) * ((uint32_t)maxBrightness); // Value to represent power draw needed to display this brightness
+
+  // Break the current color into its RGB values
+  // NOTE: Colors are in GRB order
+  uint8_t g, r, b;
+  uint16_t colorSum;
+  uint32_t color, brightnessProduct;
+
+  // If POV color, check both colors to make sure they are safe
+  for (uint8_t c = 0; c < colorIterations; c++) {
+    color = isPOVColor ? COLORS[ COLORS_POV[colorIdx - numColors][c] ] : COLORS[colorIdx];
+    g = color >> 16;
+    r = color >> 8;
+    b = color;
+    colorSum = g + r + b;
+
+    brightnessProduct = ((uint32_t)brightness) * ((uint32_t)colorSum);
+
+    // Change brightness to safe value if needed
+    if (brightnessProduct > maxBrightnessProduct) {
+
+      // If brightness is greater than the max safe brightness, update the brightness value
+      if (brightness > maxBrightnessProduct / colorSum) {
+        brightness = maxBrightnessProduct / colorSum;
+
+        // Alert user if the user was actually trying to change the brightness, rather than changing patterns or colors
+        if (difference != 0) {
+          alertUser();
+        }
+      }
+    }
+  }
+  return brightness;
 }
 
 // difference is the amount by which you would like to change the brightness
@@ -424,14 +470,21 @@ void changeBrightness(int difference) {
   uint8_t currentBrightness = strip.getBrightness();
   int newBrightness = currentBrightness + difference;
 
-  if (newBrightness <= minBrightness) {
+  // change the brightness level
+  if (newBrightness < minBrightness) {
     newBrightness = minBrightness;
+    // Serial.println("Here");
     alertUser();
-  } else if (newBrightness >= maxBrightness) {
+  } else if (newBrightness > maxBrightness) {
     newBrightness = maxBrightness;
+    // Serial.println("There");
     alertUser();
   }
-  Serial.println((String)newBrightness);
+
+  newBrightness = makeSafeBrightness(newBrightness, selectedPatternColorIdx, difference);
+
+  // Serial.print(F("Brightness: "));
+  // Serial.println((String)newBrightness);
 
   strip.setBrightness((uint8_t)newBrightness);
   showColumn();
@@ -524,6 +577,7 @@ void changeColor(int colorIndexModifier) {
     selectedPatternColorIdx = 0;
   }
 
+  changeBrightness(0); // Changing brightness by 0 so that we can make sure the brightness is safe for the new pattern
   resetIndexesFlags();
 }
 
@@ -619,13 +673,7 @@ void pattern0() {
 }
 
 // Color Wipe
-void pattern1(uint8_t msDelay) {  
-  // When we first enter the pattern, turn the stick black
-  if (patternChanged) {
-    // NOTE: I turned this off because it was happening on every iteration for some reason
-    // setAllPixels(0); // set to black
-  }
-  
+void pattern1(uint8_t msDelay) {
   int numColors = getNumColors();
   bool isPOVColor = isPOVColorIndex(selectedPatternColorIdx);
   int colorIterations = isPOVColor ? 2 : 1; // 2 colors for POV
