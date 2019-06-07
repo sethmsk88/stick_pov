@@ -180,7 +180,7 @@ void setFavorite(uint8_t i) {
   EEPROM.update(speedDelay_addr, speedDelay);
   EEPROM.update(patternColorIndex_addr, selectedPatternColorIdx);
 
-  alertUser();
+  alertUser(COLORS[0], 2, 50, 200);
 
   // Serial.println("Favorite " + (String)i + " saved:");
 }
@@ -454,7 +454,7 @@ uint8_t makeSafeBrightness(uint8_t brightness, uint8_t colorIdx, int difference)
 
         // Alert user if the user was actually trying to change the brightness, rather than changing patterns or colors
         if (difference != 0) {
-          alertUser();
+          alertUser(COLORS[0], 2, 50, 200);
         }
       }
     }
@@ -474,11 +474,11 @@ void changeBrightness(int difference) {
   if (newBrightness < minBrightness) {
     newBrightness = minBrightness;
     // Serial.println("Here");
-    alertUser();
+    alertUser(COLORS[0], 2, 50, 200);
   } else if (newBrightness > maxBrightness) {
     newBrightness = maxBrightness;
     // Serial.println("There");
-    alertUser();
+    alertUser(COLORS[0], 2, 50, 200);
   }
 
   newBrightness = makeSafeBrightness(newBrightness, selectedPatternColorIdx, difference);
@@ -495,13 +495,13 @@ void increaseSpeed() {
   if (speedDelay <= 0) {
     speedDelay = 0;
     // Serial.println("Maximum speed");
-    alertUser();
+    alertUser(COLORS[0], 2, 50, 200);
   } else {
     // Prevent unsigned int math going negative
     if ((int)speedDelay - (int)speedIncrement < 0) {
       speedDelay = 0;
       // Serial.println("Maximum speed");
-      alertUser();
+      alertUser(COLORS[0], 2, 50, 200);
     } else {
       speedDelay -= speedIncrement;
     }
@@ -515,7 +515,7 @@ void decreaseSpeed() {
   if (speedDelay >= maxSpeedDelay) {
     speedDelay = maxSpeedDelay;
     // Serial.println("Minimum speed");
-    alertUser();
+    alertUser(COLORS[0], 2, 50, 200);
   } else {
     speedDelay += speedIncrement;
   }
@@ -528,7 +528,7 @@ void increasePOVSpeed() {
   if (POVSpeedDelay <= 0) {
     POVSpeedDelay = 0;
     // Serial.println("Maximum POV speed");
-    alertUser();
+    alertUser(COLORS[0], 2, 50, 200);
   } else {
     if (POVSpeedDelay - POVSpeedIncrement < 0) {
       POVSpeedDelay = 0;
@@ -546,7 +546,7 @@ void decreasePOVSpeed() {
   if (POVSpeedDelay >= POVSpeedDelayMax) {
     POVSpeedDelay = POVSpeedDelayMax;
     // Serial.println("Minimum POV speed");
-    alertUser();
+    alertUser(COLORS[0], 2, 50, 200);
   } else {
     POVSpeedDelay += POVSpeedIncrement;
   }
@@ -1356,15 +1356,15 @@ uint32_t Wheel(byte WheelPos) {
 }
 
 // Alert user by flashing stick red
-void alertUser() {    
-  setAllPixels(0); // BLACK
-  delay(50);
-  setAllPixels(COLORS[0]);
-  delay(50);
-  setAllPixels(0); // BLACK
-  delay(50);
-  setAllPixels(COLORS[0]);
-  delay(200);
+void alertUser(uint32_t color, uint8_t numFlashes, uint16_t midDelay, uint16_t endDelay) {    
+  for (uint8_t i=0; i < numFlashes; i++) {
+    setAllPixels(0); // BLACK
+    delay(midDelay);
+    setAllPixels(color);
+    delay(midDelay);
+    Serial.println("flash " + (String)i);
+  }
+  delay(endDelay);
 
   patternChanged = true; // Trigger a pattern restart for patterns that are unchanging
   showColumn();
