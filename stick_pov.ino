@@ -536,6 +536,7 @@ void increasePOVSpeed() {
     } else {
       POVSpeedDelay -= POVSpeedIncrement;
     }
+    alertUser(0, 1, 0, 500); // Flash stick black for half a second
   }
   Serial.print(F("POV Speed Delay: "));
   Serial.println((String)POVSpeedDelay);
@@ -549,6 +550,7 @@ void decreasePOVSpeed() {
     alertUser(COLORS[0], 2, 50, 200);
   } else {
     POVSpeedDelay += POVSpeedIncrement;
+    alertUser(0, 1, 0, 500); // Flash stick black for half a second
   }
   Serial.print(F("POV Speed Delay: "));
   Serial.println((String)POVSpeedDelay);
