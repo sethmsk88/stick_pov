@@ -1,55 +1,55 @@
 #include <WString.h> // to be allowed to use .ino String class in a .cpp file
-typedef unsigned long uint32_t;
+typedef unsigned int uint16_t;
 typedef bool boolean;
 
 class RemoteControlRoku
 {
     public:
         // Button IR Codes
-        static const uint32_t BTN_POWER = 1474553879;
-        static const uint32_t BTN_BACK = 1474520729;
-        static const uint32_t BTN_HOME = 1474543679;
-        static const uint32_t BTN_UP = 1474533479;
-        static const uint32_t BTN_DOWN = 1474546739;
-        static const uint32_t BTN_LEFT = 1474525319;
-        static const uint32_t BTN_RIGHT = 1474540619;
-        static const uint32_t BTN_OK = 1474516139;
-        static const uint32_t BTN_RETURN = 1474502369;
-        static const uint32_t BTN_ASTERISK = 1474528889;
-        static const uint32_t BTN_REWIND = 1474505939;
-        static const uint32_t BTN_PLAYPAUSE = 1474507469;
-        static const uint32_t BTN_FASTFORWARD = 1474538069;
-        static const uint32_t BTN_MEDIA_0 = 1474513589;
-        static const uint32_t BTN_MEDIA_1 = 1474548269;
-        static const uint32_t BTN_MEDIA_2 = 1474559489;
-        static const uint32_t BTN_MEDIA_3 = 1474498799;
-        static const uint32_t BTN_VOL_UP = 1474555919;
-        static const uint32_t BTN_VOL_DOWN = 1474496759;
-        static const uint32_t BTN_MUTE = 1474495739;
+        static const uint16_t BTN_POWER = 59415;
+        static const uint16_t BTN_BACK = 26265;
+        static const uint16_t BTN_HOME = 49215;
+        static const uint16_t BTN_UP = 39015;
+        static const uint16_t BTN_DOWN = 52275;
+        static const uint16_t BTN_LEFT = 30855;
+        static const uint16_t BTN_RIGHT = 46155;
+        static const uint16_t BTN_OK = 21675;
+        static const uint16_t BTN_RETURN = 7905;
+        static const uint16_t BTN_ASTERISK = 34425;
+        static const uint16_t BTN_REWIND = 11475;
+        static const uint16_t BTN_PLAYPAUSE = 13005;
+        static const uint16_t BTN_FASTFORWARD = 43605;
+        static const uint16_t BTN_MEDIA_0 = 19125;
+        static const uint16_t BTN_MEDIA_1 = 64195;
+        static const uint16_t BTN_MEDIA_2 = 65025;
+        static const uint16_t BTN_MEDIA_3 = 4335;
+        static const uint16_t BTN_VOL_UP = 61455;
+        static const uint16_t BTN_VOL_DOWN = 2295;
+        static const uint16_t BTN_MUTE = 1275;
 
         // Holding Button IR Codes
-        static const uint32_t BTN_POWER_HOLD = 1474554134;
-        static const uint32_t BTN_BACK_HOLD = 1474520984;
-        static const uint32_t BTN_HOME_HOLD = 1474543934;
-        static const uint32_t BTN_UP_HOLD = 1474533734;
-        static const uint32_t BTN_DOWN_HOLD = 1474546994;
-        static const uint32_t BTN_LEFT_HOLD = 1474525574;
-        static const uint32_t BTN_RIGHT_HOLD = 1474540874;
-        static const uint32_t BTN_OK_HOLD = 1474516394;
-        static const uint32_t BTN_RETURN_HOLD = 1474502624;
-        static const uint32_t BTN_ASTERISK_HOLD = 1474529144;
-        static const uint32_t BTN_REWIND_HOLD = 1474506194;
-        static const uint32_t BTN_PLAYPAUSE_HOLD = 1474507724;
-        static const uint32_t BTN_FASTFORWARD_HOLD = 1474538324;
-        static const uint32_t BTN_MEDIA_0_HOLD = 1474513844;
-        static const uint32_t BTN_MEDIA_1_HOLD = 1474548524;
-        static const uint32_t BTN_MEDIA_2_HOLD = 1474559744;
-        static const uint32_t BTN_MEDIA_3_HOLD = 1474499054;
-        static const uint32_t BTN_VOL_UP_HOLD = 1474556174;
-        static const uint32_t BTN_VOL_DOWN_HOLD = 1474497014;
-        static const uint32_t BTN_MUTE_HOLD = 1474495994;
+        static const uint16_t BTN_POWER_HOLD = 59670;
+        static const uint16_t BTN_BACK_HOLD = 26520;
+        static const uint16_t BTN_HOME_HOLD = 49470;
+        static const uint16_t BTN_UP_HOLD = 39270;
+        static const uint16_t BTN_DOWN_HOLD = 52530;
+        static const uint16_t BTN_LEFT_HOLD = 31110;
+        static const uint16_t BTN_RIGHT_HOLD = 46410;
+        static const uint16_t BTN_OK_HOLD = 21930;
+        static const uint16_t BTN_RETURN_HOLD = 8160;
+        static const uint16_t BTN_ASTERISK_HOLD = 34680;
+        static const uint16_t BTN_REWIND_HOLD = 11730;
+        static const uint16_t BTN_PLAYPAUSE_HOLD = 13260;
+        static const uint16_t BTN_FASTFORWARD_HOLD = 43860;
+        static const uint16_t BTN_MEDIA_0_HOLD = 19380;
+        static const uint16_t BTN_MEDIA_1_HOLD = 54060;
+        static const uint16_t BTN_MEDIA_2_HOLD = 65280;
+        static const uint16_t BTN_MEDIA_3_HOLD = 4590;
+        static const uint16_t BTN_VOL_UP_HOLD = 61710;
+        static const uint16_t BTN_VOL_DOWN_HOLD = 2550;
+        static const uint16_t BTN_MUTE_HOLD = 1530;
 
-        static String RemoteControlRoku::getBtnDescription(uint32_t btnCode) {
+        static String RemoteControlRoku::getBtnDescription(uint16_t btnCode) {
           switch(btnCode) {
               case RemoteControlRoku::BTN_ASTERISK:
                   return "Asterisk";
@@ -135,7 +135,7 @@ class RemoteControlRoku
           return "";
       }
 
-      static boolean RemoteControlRoku::isButtonPress(uint32_t btnCode) {
+      static boolean RemoteControlRoku::isButtonPress(uint16_t btnCode) {
         switch (btnCode) {
             case RemoteControlRoku::BTN_ASTERISK:
             case RemoteControlRoku::BTN_BACK:
@@ -166,7 +166,7 @@ class RemoteControlRoku
         }
     }
 
-    static boolean RemoteControlRoku::isButtonHold(uint32_t btnCode) {
+    static boolean RemoteControlRoku::isButtonHold(uint16_t btnCode) {
         switch (btnCode) {
             case RemoteControlRoku::BTN_ASTERISK_HOLD:
             case RemoteControlRoku::BTN_BACK_HOLD:

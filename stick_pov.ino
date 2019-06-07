@@ -25,31 +25,26 @@ const uint16_t NUM_LEDS_SAVED_ADDR = 15;
 const uint16_t BRIGHTNESS_SAVED_ADDR = 16;
 const uint16_t LAST_PATTERN_SAVED_ADDR = 17; // NOT BEING USED - Only needs one byte, so one address
 
-const uint32_t BLACK = 0x000000; // GRB
-const uint32_t RED = 0x00FF00;
-const uint32_t GREEN = 0x800000;
-const uint32_t BLUE = 0x0000FF;
-const uint32_t YELLOW = 0xFFFF00;
-const uint32_t CYAN = 0x9900FF;
-const uint32_t MAGENTA = 0x00FFFF;
-const uint32_t PURPLE = 0x008080;
-const uint32_t ATTRACTIVE_PURPLE = 0x004d99;
-const uint32_t VIOLET = 0x0094D3;
-const uint32_t INDIGO = 0x004B82;
-const uint32_t PINK = 0xC0FFCB;
-const uint32_t ORANGE = 0x90FF00;
-
-const uint32_t COLORS[] = {RED, GREEN, BLUE, YELLOW, CYAN, MAGENTA, PURPLE, ATTRACTIVE_PURPLE, VIOLET, INDIGO, PINK, ORANGE};
-const int COLORS_POV[][2] = {{0,1},{0,2},{1,2}}; // combinations of color indexes for POV
+// Colors are in GRB format
+const uint32_t COLORS[] = {
+  0x00FF00, // 0 - RED
+  0x800000, // 1 - GREEN
+  0x0000FF, // 2 - BLUE
+  0xFFFF00, // 3 - YELLOW
+  0x9900FF, // 4 - CYAN
+  0x00FFFF, // 5 - MAGENTA
+  0x004D99, // 6 - ATTRACTIVE_PURPLE
+  0xC0FFCB, // 7 - PINK
+  0x90FF00, // 8 - ORANGE
+  0xFFFFFF, // 9 - WHITE
+};
+const uint8_t COLORS_POV[][2] = {{0,1},{0,2},{1,2}}; // combinations of color indexes for POV
 
 uint8_t defaultBrightness = 160;//105; // Default is set to 50% of the brightness range
-const uint8_t maxBrightness = 230; // 90% of 255
-const uint8_t minBrightness = 20;
-const uint8_t brightnessIncrement = 5;
 uint8_t numLEDs = 50;
-const uint8_t maxLEDs = 100;
+const uint8_t MAX_LEDS = 100;
 
-uint32_t patternColumn[maxLEDs] = {};
+uint32_t patternColumn[MAX_LEDS] = {};
 int selectedPatternIdx = 0; // defaul pattern index
 int selectedPatternColorIdx = 0; // default color index
 uint8_t numPatterns = 8;
@@ -64,8 +59,8 @@ int POVSpeedDelay = 16;
 const int POVSpeedDelayMax = 50;
 uint8_t speedIncrement = 1;
 int POVSpeedIncrement = 1;
-uint32_t lastButtonPress = 0;
-uint32_t pendingButtonPress = 0; // IR value for button press
+uint16_t lastButtonPress = 0;
+uint16_t pendingButtonPress = 0; // IR value for button press
 unsigned long buttonPressStartTime = 0;
 unsigned long noIRSignalDelay = 150; // if there are no IR signals for this amount of time, then we can say there are no active IR signals
 int patDirection = 0;
@@ -87,7 +82,7 @@ decode_results IRresults;
 
 void setup() {
   Serial.begin(9600); // Connect with Serial monitor for testing purposes
-  Serial.println("Serial Monitor Ready");
+  // Serial.println("Serial Monitor Ready");
   
   myReceiver.enableIRIn(); // start the receiver
 
@@ -103,39 +98,27 @@ void setup() {
   randomSeed(analogRead(0));
 }
 
-// Update the number of LEDs on the strip
-void incrementLEDCount() {
-  // Increase number LEDs in strip object
-  if (strip.numPixels() >= maxLEDs) {
-    strip.updateLength((uint16_t)maxLEDs);
-  } else {
-    strip.updateLength(strip.numPixels() + 1);
-    // Serial.println("Num LEDS: " + (String)strip.numPixels());
-  }
-  strip.show();
-
-  // Save number of LEDs to non-volatile memory
-  EEPROM.update(NUM_LEDS_SAVED_ADDR, (uint8_t)strip.numPixels());
-
-  Serial.println("Num LEDs: " + (String)strip.numPixels());
-}
-
-void decrementLEDCount() {
-  int minNumPixels = 5; // setting min number of pixels to 5, because their is a weird bug below 5
+// Change the number of LEDs on the strip
+void changeNumLEDs(int difference) {
+  // ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR 
+  // ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR 
+  // ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR 
+  // TODO: There is a problem with this function. The method updateLength causes the stick to freeze
   
-  if (strip.numPixels() <= minNumPixels) {
-    strip.updateLength(minNumPixels); // Don't ever turn off all LEDs. This could be confusing to the User
-  } else {
-    // Turn off highest LED
-    patternColumn[strip.numPixels() - 1] = BLACK;
+  // TODO: if it's a negative difference, pulse the stick a solid color and delay briefly, since this action
+  // will be on a button hold
+  
+  int minNumLEDs = 5; // setting min number of pixels to 5, because their is a weird bug below 5
+  uint16_t currentNumLEDs = strip.numPixels();
+  uint16_t newNumLEDs = currentNumLEDs + difference;
+
+  if (newNumLEDs >= minNumLEDs && newNumLEDs <= MAX_LEDS) {
+    // strip.updateLength(newNumLEDs); // ERROR - DISABLED FOR NOW
     showColumn();
     
-    strip.updateLength(strip.numPixels() - 1);
-  }  
-  strip.show();
-
-  // Save number of LEDs to non-volatile memory
-  EEPROM.update(NUM_LEDS_SAVED_ADDR, (uint8_t)strip.numPixels());
+    // Save number of LEDs to non-volatile memory
+    EEPROM.update(NUM_LEDS_SAVED_ADDR, (uint8_t)strip.numPixels());
+  }
 
   Serial.println("Num LEDs: " + (String)strip.numPixels());
 }
@@ -162,7 +145,7 @@ void applySavedSettings() {
 
   // Reset EEPROM values - ONLY RUN ONCE
   // ONLY activate this if the usage of memory addresses has changed in the EEPROM
-    // int numMemAddressesUsed = 18;
+  // int numMemAddressesUsed = 18;
   // for (int i=0; i < numMemAddressesUsed; i++) {
   //   EEPROM.update(i, 255);
   // }
@@ -174,14 +157,15 @@ void applySavedSettings() {
 
   // Apply saved number of LEDs for the stick
   if (EEPROM.read(NUM_LEDS_SAVED_ADDR) != unsetVal) {
-    numLEDs = EEPROM.read(NUM_LEDS_SAVED_ADDR);
+    // numLEDs = EEPROM.read(NUM_LEDS_SAVED_ADDR);
+    numLEDs = 50;
   }
 }
 
 // Save a favorite
 void setFavorite(uint8_t i) {
   if (selectedPatternIdx < 0) {
-    Serial.println("ERROR: Cannot save a pattern favorite whose index is negative");
+    // Serial.println("ERROR: Cannot save a pattern favorite whose index is negative");
     return;
   }
   
@@ -195,7 +179,7 @@ void setFavorite(uint8_t i) {
 
   alertUser();
 
-  Serial.println("Favorite " + (String)i + " saved:");
+  // Serial.println("Favorite " + (String)i + " saved:");
 }
 
 // Get a saved favorite, and make it active
@@ -239,8 +223,8 @@ void saveBrightness() {
 }
 
 void checkButtonPress() { 
-  uint32_t IRVal;
-  uint32_t buttonActionVal;
+  uint16_t IRVal;
+  uint16_t buttonActionVal;
   unsigned long currentTime = millis();
   bool buttonAction = false; // whether or not to perform button action
   bool buttonHold = false; // whether or not a button is being held down
@@ -256,8 +240,7 @@ void checkButtonPress() {
   
   // IR signal received
   if (myReceiver.decode(&IRresults)) {
-    IRVal = IRresults.value;
-
+    IRVal = (uint16_t)IRresults.value;
 
     // Serial.println("IR Received [" + RemoteControlRoku::getBtnDescription(IRVal) + "]"); // DEBUG
     // Serial.println((String)IRVal);
@@ -340,10 +323,10 @@ void checkButtonPress() {
         }
         break;
       case RemoteControlRoku::BTN_ASTERISK:
-        incrementLEDCount();
+        changeNumLEDs(1);
         break;
       case RemoteControlRoku::BTN_ASTERISK_HOLD:
-        decrementLEDCount();
+        changeNumLEDs(-1);
         break;
       case RemoteControlRoku::BTN_HOME:
         getFavorite(0);
@@ -377,11 +360,11 @@ void checkButtonPress() {
         break;
       case RemoteControlRoku::BTN_VOL_UP:
       case RemoteControlRoku::BTN_VOL_UP_HOLD:
-        increaseBrightness();
+        changeBrightness(5);
         break;
       case RemoteControlRoku::BTN_VOL_DOWN:
       case RemoteControlRoku::BTN_VOL_DOWN_HOLD:
-        decreaseBrightness();
+        changeBrightness(-5);
         break;
       case RemoteControlRoku::BTN_RETURN:
         changeDirection();
@@ -415,7 +398,7 @@ void nextPattern() {
   resetIndexesFlags();
   saveBrightness(); // save stick brightness if it has changed
 
-  Serial.println("selectedPatternIdx = " + (String)selectedPatternIdx); // DEBUG
+  // Serial.println("selectedPatternIdx = " + (String)selectedPatternIdx); // DEBUG
 }
 
 void prevPattern() {
@@ -428,39 +411,19 @@ void prevPattern() {
   saveBrightness(); // save stick brightness if it has changed
 }
 
-// Increase brightness of pixels
-void increaseBrightness() {  
-  if (strip.getBrightness() < maxBrightness) {
-    if (strip.getBrightness() + brightnessIncrement >= maxBrightness) {
-      strip.setBrightness(maxBrightness);
-      Serial.println("Maximum Brightness");
-      alertUser();
-    } else {
-      strip.setBrightness(strip.getBrightness() + brightnessIncrement);
-    }
-    Serial.println("Brightness = " + (String)strip.getBrightness());
-    showColumn();
-  } else {
-    Serial.println("Maximum Brightness");    
-    alertUser();
-  }
-}
+// difference is the amount by which you would like to change the brightness
+// (e.g. -5 = darker, 5 = brighter)
+void changeBrightness(int difference) {
+  int minBrightness = 20;
+  int maxBrightness = 230; // 90% of 255
+  uint8_t currentBrightness = strip.getBrightness();
+  int newBrightness = currentBrightness + difference;
 
-// Decrease brightness of pixels
-void decreaseBrightness() {
-  if (strip.getBrightness() > minBrightness) {
-    if (strip.getBrightness() - brightnessIncrement <= minBrightness) {
-      strip.setBrightness(minBrightness);
-      Serial.println("Minimum Brightness");
-      alertUser();
-    } else {
-      strip.setBrightness(strip.getBrightness() - brightnessIncrement);
-    }
-    Serial.println("Brightness = " + (String)strip.getBrightness());
-    showColumn();
-  } else {
-    Serial.println("Minimum Brightness");    
+  if (newBrightness < minBrightness || newBrightness > maxBrightness) {
     alertUser();
+  } else {
+    strip.setBrightness((uint8_t)newBrightness);
+    showColumn();
   }
 }
 
@@ -468,13 +431,13 @@ void decreaseBrightness() {
 void increaseSpeed() {
   if (speedDelay <= 0) {
     speedDelay = 0;
-    Serial.println("Maximum speed");
+    // Serial.println("Maximum speed");
     alertUser();
   } else {
     // Prevent unsigned int math going negative
     if ((int)speedDelay - (int)speedIncrement < 0) {
       speedDelay = 0;
-      Serial.println("Maximum speed");
+      // Serial.println("Maximum speed");
       alertUser();
     } else {
       speedDelay -= speedIncrement;
@@ -487,7 +450,7 @@ void increaseSpeed() {
 void decreaseSpeed() {
   if (speedDelay >= maxSpeedDelay) {
     speedDelay = maxSpeedDelay;
-    Serial.println("Minimum speed");
+    // Serial.println("Minimum speed");
     alertUser();
   } else {
     speedDelay += speedIncrement;
@@ -499,12 +462,12 @@ void decreaseSpeed() {
 void increasePOVSpeed() {
   if (POVSpeedDelay <= 0) {
     POVSpeedDelay = 0;
-    Serial.println("Maximum POV speed");
+    // Serial.println("Maximum POV speed");
     alertUser();
   } else {
     if (POVSpeedDelay - POVSpeedIncrement < 0) {
       POVSpeedDelay = 0;
-      Serial.println("Maximum POV speed");
+      // Serial.println("Maximum POV speed");
     } else {
       POVSpeedDelay -= POVSpeedIncrement;
     }
@@ -516,7 +479,7 @@ void increasePOVSpeed() {
 void decreasePOVSpeed() {
   if (POVSpeedDelay >= POVSpeedDelayMax) {
     POVSpeedDelay = POVSpeedDelayMax;
-    Serial.println("Minimum POV speed");
+    // Serial.println("Minimum POV speed");
     alertUser();
   } else {
     POVSpeedDelay += POVSpeedIncrement;
@@ -577,6 +540,7 @@ void showColumn() {
   delay(speedDelay); // tiny bit of flicker
 }
 
+/*
 void debugPatternColumn() {
   String litPixels = "";
   for (int i=0; i < strip.numPixels(); i++) {
@@ -588,13 +552,10 @@ void debugPatternColumn() {
   }
   Serial.println(litPixels);
 }
+*/
 
 // Show the pattern that is currently selected
-void showPattern() {
-  uint32_t colorSet_0[] = {PURPLE, BLUE, GREEN, RED, PINK, ORANGE, YELLOW};
-
-  int colorIndexes[] = {0, 1};
-  
+void showPattern() {  
   switch (selectedPatternIdx) {
     case -1:
       patternOff();
@@ -603,7 +564,7 @@ void showPattern() {
       pattern4();
       break;
     case 1:
-      pattern0(colorSet_0, (sizeof(colorSet_0) / sizeof(uint32_t)));
+      pattern0();
       break;
     case 2:
       pattern1(5);
@@ -628,16 +589,19 @@ void showPattern() {
 
 // Set all pixels to black, so very little power is used
 void patternOff() {
-  setAllPixels(BLACK);
+  setAllPixels(0); // Set to BLACK
 }
 
 // Create vertical columns of the colors listed below
 // Note: Loops through 7 showColumn calls before returning
 // TODO: Experiment with returning after every call of showColumn()
-void pattern0(uint32_t patternColors[], int numPatternColors) {  
-  for (uint8_t i=0; i < numPatternColors; i++) {
+void pattern0() {  
+  int colorIndexes[] = {6,2,1,0,7,8,3};
+  int numColors = sizeof(colorIndexes) / sizeof(*colorIndexes);
+
+  for (uint8_t i=0; i < numColors; i++) {
     for (uint8_t j=0; j < strip.numPixels(); j++) {
-      patternColumn[j] = patternColors[i];
+      patternColumn[j] = COLORS[colorIndexes[i]];
     }
     showColumn();
     delay(POVSpeedDelay);
@@ -649,7 +613,7 @@ void pattern1(uint8_t msDelay) {
   // When we first enter the pattern, turn the stick black
   if (patternChanged) {
     // NOTE: I turned this off because it was happening on every iteration for some reason
-    // setAllPixels(BLACK);
+    // setAllPixels(0); // set to black
   }
   
   int numColors = getNumColors();
@@ -687,8 +651,8 @@ void pattern1(uint8_t msDelay) {
 // Displays diamonds
 void pattern2() {
   // Note: this solution prints the whole pattern before returning
-  uint32_t color1 = RED;
-  uint32_t color2 = GREEN;
+  uint32_t color1 = COLORS[0]; // red
+  uint32_t color2 = COLORS[1]; // green
   uint8_t row_i = 0;
     
   uint8_t height = 15;
@@ -706,21 +670,18 @@ void pattern2() {
       for (c = 1; c <= space; c++) {
         if (row_i >= strip.numPixels())
           break;
-        Serial.print("0");
         patternColumn[row_i] = color1;
         row_i++;
       }
       for (c = 1; c <= 2*k-1;c++) {
         if (row_i >= strip.numPixels())
           break;
-        Serial.print("1");
         patternColumn[row_i] = color2;
         row_i++;
       }
       for (c = 1; c <= space; c++) {
         if (row_i >= strip.numPixels())
           break;
-        Serial.print("0");
         patternColumn[row_i] = color1;
         row_i++;
       }
@@ -728,7 +689,6 @@ void pattern2() {
       if (row_i >= strip.numPixels())
         break;
           
-      Serial.println("");
       space--;
     }
   
@@ -738,27 +698,23 @@ void pattern2() {
       for (c= 1; c <= space; c++) {
         if (row_i >= strip.numPixels())
           break;
-        Serial.print("0");
         patternColumn[row_i] = color1;
         row_i++;
       }
       for (c = 1; c <= 2*(height - k)-1; c++) {
         if (row_i >= strip.numPixels())
           break;
-        Serial.print("*");
         patternColumn[row_i] = color2;
         row_i++;
       }
       for (c= 1; c <= space; c++) {
         if (row_i >= strip.numPixels())
           break;
-        Serial.print("0");
         patternColumn[row_i] = color1;
         row_i++;
       }
       if (row_i >= strip.numPixels())
         break;
-      Serial.println("");
       space++;
     }
   }
@@ -769,8 +725,8 @@ void pattern2() {
 // then flip it vertically and print the bottom half.
 void pattern3() {
   int pixel_i = 0;
-  uint32_t c1 = RED;
-  uint32_t c2 = GREEN;
+  uint32_t c1 = COLORS[0]; // red
+  uint32_t c2 = COLORS[1]; // green
   int height = 7;
   int width = 13;
   int stretch = 3; // factor by which we are stretching the pattern vertically
@@ -866,7 +822,7 @@ void pattern5() {
         if (travel_i == pat_i_1) {
           patternColumn[travel_i] = color;
         } else {
-          patternColumn[travel_i] = BLACK;
+          patternColumn[travel_i] = 0; // BLACK
         }
       }
     
@@ -910,7 +866,7 @@ void pattern5() {
             patternColumn[travel_i] = COLORS[selectedPatternColorIdx];
           }
         } else {
-          patternColumn[travel_i] = BLACK;
+          patternColumn[travel_i] = 0; // BLACK
         }
       }
     
@@ -960,7 +916,7 @@ void pattern6() {
       if (i <= pat_i_1) {
         patternColumn[i] = color;
       } else {
-        patternColumn[i] = BLACK;
+        patternColumn[i] = 0; // BLACK
       }
     }
 
@@ -1026,9 +982,9 @@ void pattern7() {
           patternColumn[i+1] = color;
         }
       } else {
-        patternColumn[i] = BLACK;
+        patternColumn[i] = 0; // BLACK
         if (i+1 < strip.numPixels()) {
-          patternColumn[i+1] = BLACK;
+          patternColumn[i+1] = 0; // BLACK
         }
       }
     }
@@ -1200,7 +1156,7 @@ void pattern9() {
       if (pixel_i == rand_i_0 || pixel_i == rand_i_1 || pixel_i == rand_i_2) {
         patternColumn[pixel_i] = color;
       } else {
-        patternColumn[pixel_i] = BLACK;
+        patternColumn[pixel_i] = 0; // BLACK
       }
       pixel_i++;
     }
@@ -1343,21 +1299,15 @@ uint32_t Wheel(byte WheelPos) {
 
 // Alert user by flashing stick red
 void alertUser() {    
-  setAllPixels(BLACK);
+  setAllPixels(0); // BLACK
   delay(50);
-  setAllPixels(RED);
+  setAllPixels(COLORS[0]);
   delay(50);
-  setAllPixels(BLACK);
+  setAllPixels(0); // BLACK
   delay(50);
-  setAllPixels(RED);
+  setAllPixels(COLORS[0]);
   delay(200);
 
   patternChanged = true; // Trigger a pattern restart for patterns that are unchanging
   showColumn();
-}
-
-void debugButton(uint32_t buttonVal) {
-  
-
-   
 }
