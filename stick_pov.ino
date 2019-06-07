@@ -120,7 +120,8 @@ void changeNumLEDs(int difference) {
     EEPROM.update(NUM_LEDS_SAVED_ADDR, (uint8_t)strip.numPixels());
   }
 
-  Serial.println("Num LEDs: " + (String)strip.numPixels());
+  Serial.print(F("Num LEDs: "));
+  Serial.println((String)strip.numPixels());
 }
 
 void applySavedSettings() {
@@ -387,7 +388,9 @@ void checkButtonPress() {
 
     pendingButtonPress = 0; // clear value
 
-    Serial.println("Button [" + RemoteControlRoku::getBtnDescription(buttonActionVal) + "]"); // DEBUG
+    Serial.print(F("Button ["));
+    Serial.print(RemoteControlRoku::getBtnDescription(buttonActionVal));
+    Serial.println(F("]"));
   }
 }
 
@@ -428,7 +431,8 @@ void changeBrightness(int difference) {
     newBrightness = maxBrightness;
     alertUser();
   }
-  
+  Serial.println((String)newBrightness);
+
   strip.setBrightness((uint8_t)newBrightness);
   showColumn();
 }
@@ -449,7 +453,8 @@ void increaseSpeed() {
       speedDelay -= speedIncrement;
     }
   }
-  Serial.println("Speed Delay: " + (String)speedDelay);
+  Serial.print(F("Speed Delay: "));
+  Serial.println((String)speedDelay);
 }
 
 // Decrease speed of pattern
@@ -461,7 +466,8 @@ void decreaseSpeed() {
   } else {
     speedDelay += speedIncrement;
   }
-  Serial.println("Speed Delay: " + (String)speedDelay);
+  Serial.print(F("Speed Delay: "));
+  Serial.println((String)speedDelay);
 }
 
 // Increase speed of POV effect
@@ -478,7 +484,8 @@ void increasePOVSpeed() {
       POVSpeedDelay -= POVSpeedIncrement;
     }
   }
-  Serial.println("POV Speed Delay: " + (String)POVSpeedDelay);
+  Serial.print(F("POV Speed Delay: "));
+  Serial.println((String)POVSpeedDelay);
 }
 
 // Decrease speed of POV effect
@@ -490,7 +497,8 @@ void decreasePOVSpeed() {
   } else {
     POVSpeedDelay += POVSpeedIncrement;
   }
-  Serial.println("POV Speed Delay: " + (String)POVSpeedDelay);
+  Serial.print(F("POV Speed Delay: "));
+  Serial.println((String)POVSpeedDelay);
 }
 
 // Change direction of pattern
