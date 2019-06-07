@@ -421,12 +421,16 @@ void changeBrightness(int difference) {
   uint8_t currentBrightness = strip.getBrightness();
   int newBrightness = currentBrightness + difference;
 
-  if (newBrightness < minBrightness || newBrightness > maxBrightness) {
+  if (newBrightness <= minBrightness) {
+    newBrightness = minBrightness;
     alertUser();
-  } else {
-    strip.setBrightness((uint8_t)newBrightness);
-    showColumn();
+  } else if (newBrightness >= maxBrightness) {
+    newBrightness = maxBrightness;
+    alertUser();
   }
+  
+  strip.setBrightness((uint8_t)newBrightness);
+  showColumn();
 }
 
 // Increase speed of pattern
