@@ -47,7 +47,7 @@ const uint8_t MAX_LEDS = 100;
 uint32_t patternColumn[MAX_LEDS] = {};
 int selectedPatternIdx = 0; // defaul pattern index
 int selectedPatternColorIdx = 0; // default color index
-uint8_t numPatterns = 8;
+uint8_t numPatterns = 6;
 boolean patternChanged = true;
 boolean patternComplete = false; // used when a pattern should only show once
 uint16_t pat_i_0 = 0; // an index to track progress of a pattern
@@ -151,7 +151,9 @@ void applySavedSettings() {
   // }
 
   // Apply saved brightness setting
-  defaultBrightness = EEPROM.read(BRIGHTNESS_SAVED_ADDR);
+  if (EEPROM.read(BRIGHTNESS_SAVED_ADDR) != unsetVal) {
+    defaultBrightness = EEPROM.read(BRIGHTNESS_SAVED_ADDR);
+  }
 
   // Serial.println("Applying saved number of LEDs " + (String)EEPROM.read(NUM_LEDS_SAVED_ADDR));
 
@@ -573,17 +575,13 @@ void showPattern() {
       pattern5();
       break;
     case 4:
-      pattern6();
-      break;
-    case 5:
-      pattern7();
-      break;
-    case 6:
       pattern8();
       break;
-    case 7:
+    case 5:
       pattern9();
       break;
+    // pattern7();
+    // pattern6();
   }
 }
 
