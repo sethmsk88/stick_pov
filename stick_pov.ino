@@ -13,17 +13,17 @@
 #define MAX_TIME_VALUE 0xFFFFFFFF
 
 // Each favorite saves two bytes worth of info, so each is allocated two addresses
-// First address contains the index of the saved pattern
-// Second address contains the speed delay of the saved pattern
-// Third address contains the color for the saved pattern
+// 1st address contains the index of the saved pattern
+// 2nd address contains the speed delay of the saved pattern
+// 3rd address contains the color for the saved pattern
+// 4th address contains the POV speed delay for the saved pattern
 const uint16_t FAV_0_ADDR = 0;
-const uint16_t FAV_1_ADDR = 3;
-const uint16_t FAV_2_ADDR = 6;
-const uint16_t FAV_3_ADDR = 9;
-const uint16_t FAV_4_ADDR = 12;
-const uint16_t NUM_LEDS_SAVED_ADDR = 15;
-const uint16_t BRIGHTNESS_SAVED_ADDR = 16;
-const uint16_t LAST_PATTERN_SAVED_ADDR = 17; // NOT BEING USED - Only needs one byte, so one address
+const uint16_t FAV_1_ADDR = 4;
+const uint16_t FAV_2_ADDR = 8;
+const uint16_t FAV_3_ADDR = 12;
+const uint16_t FAV_4_ADDR = 16;
+const uint16_t NUM_LEDS_SAVED_ADDR = 17;
+const uint16_t BRIGHTNESS_SAVED_ADDR = 18;
 
 // Colors are in GRB format
 const uint32_t COLORS[] = {
@@ -83,7 +83,9 @@ decode_results IRresults;
 void setup() {
   Serial.begin(9600); // Connect with Serial monitor for testing purposes
   // Serial.println("Serial Monitor Ready");
-  
+
+  // initEEPROM(); // ONLY RUN THIS ONCE - Usually Leave This Commented Out
+
   myReceiver.enableIRIn(); // start the receiver
 
   applySavedSettings();
@@ -124,10 +126,21 @@ void changeNumLEDs(int difference) {
   Serial.println((String)strip.numPixels());
 }
 
+// Initialize EEPROM memory addresses that we plan to use
+// ONLY CALL THIS WHEN SETTING UP A NEW STICK, OR WHEN A CODE CHANGE
+// WAS MADE THAT INVOLVES THE EEPROM
+void initEEPROM() {
+  int numMemAddressesUsed = 19;
+  for (int i=0; i < numMemAddressesUsed; i++) {
+    EEPROM.update(i, 255);
+  }
+}
+
 void applySavedSettings() {
-  int patternIndex_addr;
-  int speedDelay_addr;
-  int patternColorIndex_addr;
+  int patternIndex_addr,
+    speedDelay_addr,
+    patternColorIndex_addr,
+    POVSpeedDelay_addr;
   int unsetVal = 255; // the number stored at an address that is unset
   
   // if favorites have not yet been saved, set them to 0
@@ -136,20 +149,15 @@ void applySavedSettings() {
     patternIndex_addr = getFavoriteAddr(i, 0); // Load pattern for this favorite
     speedDelay_addr = getFavoriteAddr(i, 1); // Load speed delay for this favorite
     patternColorIndex_addr = getFavoriteAddr(i, 2); // Load color index for this favorite
+    POVSpeedDelay_addr = getFavoriteAddr(i, 3); // Load color index for this favorite
 
     if (EEPROM.read(patternIndex_addr) == unsetVal) {
       EEPROM.update(patternIndex_addr, 0);
       EEPROM.update(speedDelay_addr, 0);
       EEPROM.update(patternColorIndex_addr, 0);
+      EEPROM.update(POVSpeedDelay_addr, 0);
     }
   }
-
-  // Reset EEPROM values - ONLY RUN ONCE
-  // ONLY activate this if the usage of memory addresses has changed in the EEPROM
-  // int numMemAddressesUsed = 18;
-  // for (int i=0; i < numMemAddressesUsed; i++) {
-  //   EEPROM.update(i, 255);
-  // }
 
   // Apply saved brightness setting
   if (EEPROM.read(BRIGHTNESS_SAVED_ADDR) != unsetVal) {
@@ -175,12 +183,14 @@ void setFavorite(uint8_t i) {
   int patternIndex_addr = getFavoriteAddr(i, 0);
   int speedDelay_addr = getFavoriteAddr(i, 1);
   int patternColorIndex_addr = getFavoriteAddr(i, 2);
+  int POVSpeedDelay_addr = getFavoriteAddr(i, 3);
   
   EEPROM.update(patternIndex_addr, selectedPatternIdx);
   EEPROM.update(speedDelay_addr, speedDelay);
   EEPROM.update(patternColorIndex_addr, selectedPatternColorIdx);
+  EEPROM.update(POVSpeedDelay_addr, POVSpeedDelay);
 
-  alertUser(COLORS[0], 2, 50, 200);
+  alertUser(COLORS[1], 2, 50, 200); // Flash stick green to alert a save
 
   // Serial.println("Favorite " + (String)i + " saved:");
 }
@@ -190,17 +200,19 @@ void getFavorite(uint8_t i) {
   int patternIndex_addr = getFavoriteAddr(i, 0);
   int speedDelay_addr = getFavoriteAddr(i, 1);
   int patternColorIndex_addr = getFavoriteAddr(i, 2);
+  int POVSpeedDelay_addr = getFavoriteAddr(i, 3);
   
   selectedPatternIdx = EEPROM.read(patternIndex_addr);
   speedDelay = EEPROM.read(speedDelay_addr);
   selectedPatternColorIdx = EEPROM.read(patternColorIndex_addr);
+  POVSpeedDelay = EEPROM.read(POVSpeedDelay_addr);
   
   resetIndexesFlags();
 }
 
 // Get address of favorite in EEPROM
 // fav_i - Favorite number (0 - 4)
-// attr_i - index of the favorite attribute (0 - 2)
+// attr_i - index of the favorite attribute (0 - 3)
 int getFavoriteAddr(int fav_i, int attr_i) {
   switch (fav_i) {
     case 0:
@@ -536,7 +548,7 @@ void increasePOVSpeed() {
     } else {
       POVSpeedDelay -= POVSpeedIncrement;
     }
-    alertUser(0, 1, 0, 500); // Flash stick black for half a second
+    alertUser(0, 1, 0, 400); // Flash stick black for half a second
   }
   Serial.print(F("POV Speed Delay: "));
   Serial.println((String)POVSpeedDelay);
@@ -1364,7 +1376,7 @@ void alertUser(uint32_t color, uint8_t numFlashes, uint16_t midDelay, uint16_t e
     delay(midDelay);
     setAllPixels(color);
     delay(midDelay);
-    Serial.println("flash " + (String)i);
+    // Serial.println("flash " + (String)i);
   }
   delay(endDelay);
 
