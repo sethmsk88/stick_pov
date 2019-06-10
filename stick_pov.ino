@@ -658,7 +658,7 @@ void showPattern() {
       pattern4();
       break;
     case 1:
-      pattern0();
+      sixColorPOV();
       break;
     case 2:
       colorWipe(5);
@@ -686,20 +686,19 @@ void patternOff() {
   setAllPixels(0); // Set to BLACK
 }
 
-// Create vertical columns of the colors listed below
-// Note: Loops through 6 showColumn calls before returning
-// TODO: Experiment with returning after every call of showColumn()
-void pattern0() {  
+// 6-color POV
+void sixColorPOV() {  
   int colorIndexes[] = {2,1,0,6,7,3};
   int numColors = sizeof(colorIndexes) / sizeof(*colorIndexes);
 
-  for (uint8_t i=0; i < numColors; i++) {
-    for (uint8_t j=0; j < strip.numPixels(); j++) {
-      patternColumn[j] = COLORS[colorIndexes[i]];
-    }
-    showColumn();
-    delay(POVSpeedDelay);
+  for (uint8_t j=0; j < strip.numPixels(); j++) {
+    patternColumn[j] = COLORS[colorIndexes[pat_i_0]];
   }
+  showColumn();
+  delay(POVSpeedDelay);
+
+  // Increment color index (loop index to beginning)
+  pat_i_0 = (pat_i_0 < numColors - 1) ? pat_i_0 + 1 : 0;
 }
 
 // Color Wipe
