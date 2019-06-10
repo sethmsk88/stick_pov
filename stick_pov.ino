@@ -52,7 +52,7 @@ const uint8_t MAX_LEDS = 60;
 uint32_t patternColumn[MAX_LEDS] = {};
 int selectedPatternIdx = 0; // default pattern index
 int selectedPatternColorIdx = 0; // default color index
-uint8_t numPatterns = 7;
+uint8_t numPatterns = 8;
 boolean patternChanged = true;
 boolean patternComplete = false; // used when a pattern should only show once
 int pat_i_0 = 0; // an index to track progress of a pattern
@@ -676,6 +676,9 @@ void showPattern() {
     case 6:
       colorWipeLoop();
       break;
+    case 7:
+      colorFade();
+      break;
   }
 }
 
@@ -793,6 +796,56 @@ void colorWipeLoop() {
     // Advance the color index
     // Loop back to the first color if we reached the last color, else, increment color index
     pat_i_1 = (pat_i_1 == totalNumColors - 1) ? 0 : pat_i_1 + 1;
+  }
+}
+
+// Fade full stick through all colors (one solid color at a time)
+void colorFade() {
+  // pat_i_0 is the current color index
+  // pat_i_1 is the color fade step we are currently on
+
+  uint8_t colorSet[] = {0, 1, 2}; // Fading through R, G, B
+
+  int numColors = 3;
+  uint16_t numPixels = strip.numPixels();
+  uint8_t steps = 64; // how many steps to take to fade from one color to another
+
+  uint32_t currentColor = COLORS[colorSet[pat_i_0]];
+  uint32_t gapColor; // the calculated color that will be shown
+  
+  uint32_t nextColor = (pat_i_0 < numColors - 1) ? COLORS[colorSet[pat_i_0] + 1] : COLORS[colorSet[0]];
+
+  uint8_t currentColor_G = currentColor >> 16;
+  uint8_t currentColor_R = currentColor >> 8;
+  uint8_t currentColor_B = currentColor;
+  uint8_t nextColor_G = nextColor >> 16;
+  uint8_t nextColor_R = nextColor >> 8;
+  uint8_t nextColor_B = nextColor;
+  uint8_t gapColor_G, gapColor_R, gapColor_B;
+
+  int G_gap = nextColor_G - currentColor_G;
+  int R_gap = nextColor_R - currentColor_R;
+  int B_gap = nextColor_B - currentColor_B;
+
+  gapColor_G = currentColor_G + (G_gap / steps * pat_i_1);
+  gapColor_R = currentColor_R + (R_gap / steps * pat_i_1);
+  gapColor_B = currentColor_B + (B_gap / steps * pat_i_1);
+
+  gapColor = 0;
+  gapColor = gapColor | (((uint32_t)(gapColor_G)) << 16);
+  gapColor = gapColor | (((uint32_t)(gapColor_R)) << 8);
+  gapColor = gapColor | ((uint32_t)(gapColor_B));
+
+  for (int pixel_i=0; pixel_i <= numPixels; pixel_i++) {
+    patternColumn[pixel_i] = gapColor;
+  }
+  showColumn();
+
+  if (pat_i_1 < steps - 1) {
+    pat_i_1++;
+  } else {
+    pat_i_1 = 0;
+    pat_i_0 = (pat_i_0 < numColors - 1) ? pat_i_0 + 1 : 0;
   }
 }
 
@@ -1116,6 +1169,7 @@ void resetIndexesFlags() {
 }
 
 void loop() {  
+  
   showPattern();
   checkButtonPress();
   
