@@ -36,10 +36,9 @@ const uint32_t COLORS[] = {
   0xFFFF00, // 3 - YELLOW
   0x9900FF, // 4 - CYAN
   0x00FFFF, // 5 - MAGENTA
-  0x004D99, // 6 - ATTRACTIVE_PURPLE
-  0xC0FFCB, // 7 - PINK
-  0x90FF00, // 8 - ORANGE
-  0xFFFFFF, // 9 - WHITE
+  0x004D99, // 6 - PURPLE
+  0x90FF00, // 7 - ORANGE
+  0xFFFFFF, // 8 - WHITE
 };
 const uint8_t COLORS_POV[][2] = {{0,1},{0,2},{1,2}}; // combinations of color indexes for POV
 
@@ -688,10 +687,10 @@ void patternOff() {
 }
 
 // Create vertical columns of the colors listed below
-// Note: Loops through 7 showColumn calls before returning
+// Note: Loops through 6 showColumn calls before returning
 // TODO: Experiment with returning after every call of showColumn()
 void pattern0() {  
-  int colorIndexes[] = {6,2,1,0,7,8,3};
+  int colorIndexes[] = {2,1,0,6,7,3};
   int numColors = sizeof(colorIndexes) / sizeof(*colorIndexes);
 
   for (uint8_t i=0; i < numColors; i++) {
