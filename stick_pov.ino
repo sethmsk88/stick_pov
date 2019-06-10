@@ -46,7 +46,7 @@ const uint8_t COLORS_POV[][2] = {{0,1},{0,2},{1,2}}; // combinations of color in
 uint8_t defaultBrightness = 160;//105; // Default is set to 50% of the brightness range
 
 // IMPORTANT NOTE: numLEDs value must also be changed in the applySavedSettings() function if a change to the LED count is made
-uint8_t numLEDs = 8; // 8 for test device, 53 for stick
+uint8_t numLEDs = 53; // 8 for test device, 53 for stick
 const uint8_t MAX_LEDS = 60;
 
 uint32_t patternColumn[MAX_LEDS] = {};
@@ -174,7 +174,7 @@ void applySavedSettings() {
   // Apply saved number of LEDs for the stick
   if (EEPROM.read(NUM_LEDS_SAVED_ADDR) != unsetVal) {
     // numLEDs = EEPROM.read(NUM_LEDS_SAVED_ADDR);
-    numLEDs = 8; // 8 for test device, 53 for stick
+    numLEDs = 53; // 8 for test device, 53 for stick
   }
 }
 
@@ -740,7 +740,7 @@ void colorWipeLoop() {
   // pat_i_0 is the index of the pixel we are currently filling up to for the animation (aka animation index)
   // pat_i_1 is the color index
   bool isPOVColor = isPOVColorIndex(pat_i_1);
-  uint8_t colorIterations = isPOVColor ? 2 : 1; // 2 colors for POV
+  uint8_t colorIterations = 2; // 2 colors for POV - Also doing solid colors for 2 iterations to keep the animation timing in sync
   uint32_t color;
   int numColors = getNumColors();
   uint8_t totalNumColors = ((uint8_t)numColors) + getNumPOVColors();
@@ -762,9 +762,7 @@ void colorWipeLoop() {
     }
 
     // Insert POV delay if POV color
-    if (isPOVColor) {
-      delay(POVSpeedDelay);
-    }
+    delay(POVSpeedDelay);
     
     showColumn();
   }
