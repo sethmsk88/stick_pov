@@ -12,6 +12,9 @@
 #define IR_PIN 5
 #define MAX_TIME_VALUE 0xFFFFFFFF
 
+// Function prototypes
+void colorWipe(uint8_t msDelay, int colorIdx = -1);
+
 // Each favorite saves two bytes worth of info, so each is allocated two addresses
 // 1st address contains the index of the saved pattern
 // 2nd address contains the speed delay of the saved pattern
@@ -41,18 +44,20 @@ const uint32_t COLORS[] = {
 const uint8_t COLORS_POV[][2] = {{0,1},{0,2},{1,2}}; // combinations of color indexes for POV
 
 uint8_t defaultBrightness = 160;//105; // Default is set to 50% of the brightness range
-uint8_t numLEDs = 53;
+
+// IMPORTANT NOTE: numLEDs value must also be changed in the applySavedSettings() function if a change to the LED count is made
+uint8_t numLEDs = 8; // 8 for test device, 53 for stick
 const uint8_t MAX_LEDS = 60;
 
 uint32_t patternColumn[MAX_LEDS] = {};
 int selectedPatternIdx = 0; // default pattern index
 int selectedPatternColorIdx = 0; // default color index
-uint8_t numPatterns = 6;
+uint8_t numPatterns = 7;
 boolean patternChanged = true;
 boolean patternComplete = false; // used when a pattern should only show once
-uint16_t pat_i_0 = 0; // an index to track progress of a pattern
-uint16_t pat_i_1 = 0; // another index to track progress of a pattern
-uint16_t pat_i_2 = 0; // another index to track progress of a pattern
+int pat_i_0 = 0; // an index to track progress of a pattern
+int pat_i_1 = 0; // another index to track progress of a pattern
+int pat_i_2 = 0; // another index to track progress of a pattern
 uint8_t speedDelay = 0; // ms of delay between showing columns
 uint8_t maxSpeedDelay = 45;
 int POVSpeedDelay = 16;
@@ -169,7 +174,7 @@ void applySavedSettings() {
   // Apply saved number of LEDs for the stick
   if (EEPROM.read(NUM_LEDS_SAVED_ADDR) != unsetVal) {
     // numLEDs = EEPROM.read(NUM_LEDS_SAVED_ADDR);
-    numLEDs = 50;
+    numLEDs = 8; // 8 for test device, 53 for stick
   }
 }
 
@@ -576,6 +581,8 @@ void changeDirection() {
     patDirection = 0;
   }
   resetIndexesFlags();
+
+  // Serial.println(F("Pattern direction changed"));
 }
 
 // Change color of pattern if it can be manually changed
@@ -602,8 +609,14 @@ bool isPOVColorIndex(int idx) {
 }
 
 // Returns the number of colors in the COLORS array
+// TODO: change return type to uint8_t
 int getNumColors() {
   return sizeof(COLORS) / sizeof(*COLORS);
+}
+
+// Returns the number of POV colors in the COLORS_POV array
+uint8_t getNumPOVColors() {
+  return sizeof(COLORS_POV) / sizeof(*COLORS_POV);
 }
 
 // Set the all pixels on the strip to the values in the patternColumn array
@@ -619,7 +632,7 @@ void showColumn() {
 
 //  debugPatternColumn();
   
-  delay(speedDelay); // tiny bit of flicker
+  delay(speedDelay);
 }
 
 /*
@@ -649,7 +662,7 @@ void showPattern() {
       pattern0();
       break;
     case 2:
-      pattern1(5);
+      colorWipe(5);
       break;
     case 3:
       pattern5();
@@ -660,8 +673,9 @@ void showPattern() {
     case 5:
       pattern9();
       break;
-    // pattern7();
-    // pattern6();
+    case 6:
+      colorWipeLoop();
+      break;
   }
 }
 
@@ -687,7 +701,7 @@ void pattern0() {
 }
 
 // Color Wipe
-void pattern1(uint8_t msDelay) {
+void colorWipe(uint8_t msDelay, int colorIdx) {
   int numColors = getNumColors();
   bool isPOVColor = isPOVColorIndex(selectedPatternColorIdx);
   int colorIterations = isPOVColor ? 2 : 1; // 2 colors for POV
@@ -713,6 +727,7 @@ void pattern1(uint8_t msDelay) {
     pat_i_0++; // increase pattern index
     
     // Check to see if pattern is complete
+    // TODO: shouldn't this be comparing against (strip.numPixels() - 1)?
     if (pat_i_0 == strip.numPixels()) {
       patternComplete = true;
     }
@@ -720,129 +735,66 @@ void pattern1(uint8_t msDelay) {
   }
 }
 
-// Displays diamonds
-void pattern2() {
-  // Note: this solution prints the whole pattern before returning
-  uint32_t color1 = COLORS[0]; // red
-  uint32_t color2 = COLORS[1]; // green
-  uint8_t row_i = 0;
-    
-  uint8_t height = 15;
-  uint8_t c, k, space = 1;
+// Loop through all color wipes
+void colorWipeLoop() {
+  // pat_i_0 is the index of the pixel we are currently filling up to for the animation (aka animation index)
+  // pat_i_1 is the color index
+  bool isPOVColor = isPOVColorIndex(pat_i_1);
+  uint8_t colorIterations = isPOVColor ? 2 : 1; // 2 colors for POV
+  uint32_t color;
+  int numColors = getNumColors();
+  uint8_t totalNumColors = ((uint8_t)numColors) + getNumPOVColors();
+  uint16_t numPixels = strip.numPixels();
 
-  // if pattern is at the beginning
-//  if (pat_i
+  for (int c=0; c < colorIterations; c++) {
+    // Get the color
+    color = isPOVColor ? COLORS[ COLORS_POV[pat_i_1 - numColors][c] ] : COLORS[pat_i_1];
 
-  space = height - 1;
-
-  while (row_i < strip.numPixels()) {
-    // Top half, if printed
-    // Left half, if on stick
-    for (k = 1; k <= height; k++) {
-      for (c = 1; c <= space; c++) {
-        if (row_i >= strip.numPixels())
-          break;
-        patternColumn[row_i] = color1;
-        row_i++;
+    // Light the pixels
+    if (patDirection == 0) {
+      for (uint16_t pixel_i=0; pixel_i <= pat_i_0; pixel_i++) {
+        patternColumn[pixel_i] = color;
       }
-      for (c = 1; c <= 2*k-1;c++) {
-        if (row_i >= strip.numPixels())
-          break;
-        patternColumn[row_i] = color2;
-        row_i++;
+    } else {
+      for (int pixel_i = numPixels - 1; pixel_i >= pat_i_0; pixel_i--) {
+        patternColumn[pixel_i] = color;
       }
-      for (c = 1; c <= space; c++) {
-        if (row_i >= strip.numPixels())
-          break;
-        patternColumn[row_i] = color1;
-        row_i++;
-      }
-      showColumn();
-      if (row_i >= strip.numPixels())
-        break;
-          
-      space--;
     }
-  
-    // Bottom half, if printed
-    // Right half, if on stick
-    for (k = 1; k <= height - 1; k++) {
-      for (c= 1; c <= space; c++) {
-        if (row_i >= strip.numPixels())
-          break;
-        patternColumn[row_i] = color1;
-        row_i++;
-      }
-      for (c = 1; c <= 2*(height - k)-1; c++) {
-        if (row_i >= strip.numPixels())
-          break;
-        patternColumn[row_i] = color2;
-        row_i++;
-      }
-      for (c= 1; c <= space; c++) {
-        if (row_i >= strip.numPixels())
-          break;
-        patternColumn[row_i] = color1;
-        row_i++;
-      }
-      if (row_i >= strip.numPixels())
-        break;
-      space++;
+
+    // Insert POV delay if POV color
+    if (isPOVColor) {
+      delay(POVSpeedDelay);
+    }
+    
+    showColumn();
+  }
+
+  bool animationComplete = false;
+  // Check to see if the pattern animation is now complete
+  if (patDirection == 0) {
+    if (pat_i_0 == numPixels - 1) {
+      animationComplete = true;
+      pat_i_0 = 0; // reset animation index
+      
+      // Advance the color index
+      // Loop back to the first color if we reached the last color, else, increment color index
+      pat_i_1 = (pat_i_1 == totalNumColors - 1) ? 0 : pat_i_1 + 1;
+    } else {
+      pat_i_0++;
+    }
+  } else {
+    if (pat_i_0 == 0) {
+      animationComplete = true;
+      pat_i_0 = numPixels - 1; // reset animation index
+    } else {
+      pat_i_0--;
     }
   }
-}
 
-// Stretched Diamond
-// This function should stretch the pattern in the array pat by the factor stretch, and
-// then flip it vertically and print the bottom half.
-void pattern3() {
-  int pixel_i = 0;
-  uint32_t c1 = COLORS[0]; // red
-  uint32_t c2 = COLORS[1]; // green
-  int height = 7;
-  int width = 13;
-  int stretch = 3; // factor by which we are stretching the pattern vertically
-  int pat[height][width] = {
-    {0,0,0,0,0,0,1,0,0,0,0,0,0},
-    {0,0,0,0,0,1,1,1,0,0,0,0,0},
-    {0,0,0,0,1,1,1,1,1,0,0,0,0},
-    {0,0,0,1,1,1,1,1,1,1,0,0,0},
-    {0,0,1,1,1,1,1,1,1,1,1,0,0},
-    {0,1,1,1,1,1,1,1,1,1,1,1,0},
-    {1,1,1,1,1,1,1,1,1,1,1,1,1}
-  };
-
-  int r; // needs to be in this scope
-  for (int c=0; c < width; c++) {
-    // top half
-    for (r=0; r < height; r++) {
-      for (int repeat_i=0; repeat_i < stretch; repeat_i++) {
-        if (pixel_i >= strip.numPixels())
-          break;
-        
-        patternColumn[pixel_i] = pat[r][c] ? c1 : c2;
-        pixel_i++;
-      }
-      if (pixel_i >= strip.numPixels())
-        break;
-    }
-    // bottom half
-    for (r=r-2; r > 0; r--) {
-      for (int repeat_i=0; repeat_i < stretch; repeat_i++) {
-
-        if (pixel_i >= strip.numPixels())
-          break;
-        
-        patternColumn[pixel_i] = pat[r][c] ? c1 : c2;
-        pixel_i++;
-      }
-      if (pixel_i >= strip.numPixels())
-        break;
-    }
-    showColumn();
-    
-    if (pixel_i >= strip.numPixels())
-      break;
+  if (animationComplete) {
+    // Advance the color index
+    // Loop back to the first color if we reached the last color, else, increment color index
+    pat_i_1 = (pat_i_1 == totalNumColors - 1) ? 0 : pat_i_1 + 1;
   }
 }
 
@@ -961,135 +913,6 @@ void pattern5() {
     }
 
     pat_i_1--;
-  }
-}
-
-void pattern6() {
-  int numColors = getNumColors();
-  bool isPOVColor = isPOVColorIndex(selectedPatternColorIdx);
-  int colorIterations = isPOVColor ? 2 : 1; // 2 colors for POV
-  uint32_t color;
-
-  // select a new random amount number to build up to
-  if (patternChanged || patternComplete) {
-    pat_i_0 = random(5, strip.numPixels());
-    patternChanged = false;
-    patternComplete = false;
-    patternReverse = false;
-  }
-
-  for (int c=0; c < colorIterations; c++) {
-    // Get the color
-    color = isPOVColor ? COLORS[ COLORS_POV[selectedPatternColorIdx - numColors][c] ] : COLORS[selectedPatternColorIdx];
-
-    // Light the pixels one at a time so it looks like they are building up
-    // Turn on the lit pixels
-    for (int i = 0; i < strip.numPixels(); i++) {
-      if (i <= pat_i_1) {
-        patternColumn[i] = color;
-      } else {
-        patternColumn[i] = 0; // BLACK
-      }
-    }
-
-    // Insert POV delay if POV color
-    if (isPOVColor) {
-      delay(POVSpeedDelay);
-    }
-
-    showColumn();
-  }
-  
-  if (!patternReverse) {
-    pat_i_1++;
-  } else {
-    pat_i_1--;
-  }
-
-  if (pat_i_1 == pat_i_0) {
-    pat_i_1 = 0;
-    patternComplete = true;
-  }
-
-  if (pat_i_1 == pat_i_0) {
-    if (!patternReverse) {
-      pat_i_0 = 0;
-      patternReverse = true;
-    } else {
-      pat_i_1 = 0;
-      patternComplete = true;
-    }
-  }
-}
-
-void pattern7() {
-  int numColors = getNumColors();
-  bool isPOVColor = isPOVColorIndex(selectedPatternColorIdx);
-  int colorIterations = isPOVColor ? 2 : 1; // 2 colors for POV
-  uint32_t color;
-  
-  int minPixel_i = 4;
-  int patIncrement = 2;
-  
-  // select a new random amount number to build up to
-  if (patternChanged || patternComplete) {
-    pat_i_0 = strip.numPixels();
-    pat_i_1 = minPixel_i;
-    patternChanged = false;
-    patternComplete = false;
-    patternReverse = false;
-  }
-
-  for (int c=0; c < colorIterations; c++) {
-    // Get the color
-    color = isPOVColor ? COLORS[ COLORS_POV[selectedPatternColorIdx - numColors][c] ] : COLORS[selectedPatternColorIdx];
-
-    // Light the pixels one at a time so it looks like they are building up
-    // Turn on the lit pixels
-    for (int i = 0; i < strip.numPixels(); i += patIncrement) {
-      if (i <= pat_i_1) {
-        patternColumn[i] = color;
-
-        if (i+1 < strip.numPixels()) {
-          patternColumn[i+1] = color;
-        }
-      } else {
-        patternColumn[i] = 0; // BLACK
-        if (i+1 < strip.numPixels()) {
-          patternColumn[i+1] = 0; // BLACK
-        }
-      }
-    }
-
-    // Insert POV delay if POV color
-    if (isPOVColor) {
-      delay(POVSpeedDelay);
-    }
-    showColumn();
-  }
-  
-  if (!patternReverse) {
-    if (pat_i_1 + patIncrement < strip.numPixels()) {
-      pat_i_1 += patIncrement;
-    } else {
-      pat_i_1 = strip.numPixels();
-    }
-  } else {
-    if (pat_i_1 - patIncrement >= 0) {
-      pat_i_1 -= patIncrement;
-    } else {
-      pat_i_1 = 0;
-    }
-  }
-
-  if (pat_i_1 == pat_i_0) {
-    if (!patternReverse) {
-      pat_i_0 = 0;
-      patternReverse = true;
-    } else {
-      pat_i_1 = minPixel_i;
-      patternComplete = true;
-    }
   }
 }
 
@@ -1249,111 +1072,6 @@ void setAllPixels(uint32_t color) {
   showColumn();
 }
 
-// Reset indexes and flags
-void resetIndexesFlags() {
-  pat_i_0 = 0;
-  pat_i_1 = 0;
-  pat_i_2 = 0;
-  patternChanged = true;
-  patternComplete = false;
-
-  // Set brightness back to what it was if it was changed for a pattern
-  if (tempSavedBrightness > 0) {
-    strip.setBrightness(tempSavedBrightness);
-    tempSavedBrightness = 0;
-  }
-}
-
-void loop() {  
-  showPattern();
-  checkButtonPress();
-  
-  // Some example procedures showing how to display to the pixels:
-//  colorWipe(strip.Color(25, 0, 0), 20); // Red
-//   colorWipe(strip.Color(50, 50, 20), 200); // White
-//  colorWipe(strip.Color(0, 255, 0), 20); // Green
-//  colorWipe(strip.Color(0, 0, 255), 50); // Blue
-//colorWipe(strip.Color(0, 0, 0, 255), 50); // White RGBW
-  // Send a theater pixel chase in...
-//  theaterChase(strip.Color(127, 127, 127), 50); // White
-//  theaterChase(strip.Color(127, 0, 0), 50); // Red
-//  theaterChase(strip.Color(0, 0, 127), 50); // Blue
-
-//  rainbow(20);
-//  rainbowCycle(20);
-//  theaterChaseRainbow(50);
-}
-
-// Fill the dots one after the other with a color
-void colorWipe(uint32_t c, uint8_t wait) {
-  for(uint16_t i=0; i<strip.numPixels(); i++) {
-    strip.setPixelColor(i, c);
-    strip.show();
-    delay(wait);
-  }
-}
-
-void rainbow(uint8_t wait) {
-  uint16_t i, j;
-  
-  for(j=0; j<256; j++) {
-    for(i=0; i<strip.numPixels(); i++) {
-      strip.setPixelColor(i, Wheel((i+j) & 255));
-    }
-    strip.show();
-    delay(wait);
-  }
-}
-
-// Slightly different, this makes the rainbow equally distributed throughout
-void rainbowCycle(uint8_t wait) {
-  uint16_t i, j;
-
-  for(j=0; j<256*5; j++) { // 5 cycles of all colors on wheel
-    for(i=0; i< strip.numPixels(); i++) {
-      strip.setPixelColor(i, Wheel(((i * 256 / strip.numPixels()) + j) & 255));
-    }
-    strip.show();
-    delay(wait);
-  }
-}
-
-//Theatre-style crawling lights.
-void theaterChase(uint32_t c, uint8_t wait) {
-  for (int j=0; j<10; j++) {  //do 10 cycles of chasing
-    for (int q=0; q < 3; q++) {
-      for (uint16_t i=0; i < strip.numPixels(); i=i+3) {
-        strip.setPixelColor(i+q, c);    //turn every third pixel on
-      }
-      strip.show();
-
-      delay(wait);
-
-      for (uint16_t i=0; i < strip.numPixels(); i=i+3) {
-        strip.setPixelColor(i+q, 0);        //turn every third pixel off
-      }
-    }
-  }
-}
-
-//Theatre-style crawling lights with rainbow effect
-void theaterChaseRainbow(uint8_t wait) {
-  for (int j=0; j < 256; j++) {     // cycle all 256 colors in the wheel
-    for (int q=0; q < 3; q++) {
-      for (uint16_t i=0; i < strip.numPixels(); i=i+3) {
-        strip.setPixelColor(i+q, Wheel( (i+j) % 255));    //turn every third pixel on
-      }
-      strip.show();
-
-      delay(wait);
-
-      for (uint16_t i=0; i < strip.numPixels(); i=i+3) {
-        strip.setPixelColor(i+q, 0);        //turn every third pixel off
-      }
-    }
-  }
-}
-
 // Input a value 0 to 255 to get a color value.
 // The colours are a transition r - g - b - back to r.
 uint32_t Wheel(byte WheelPos) {
@@ -1383,3 +1101,249 @@ void alertUser(uint32_t color, uint8_t numFlashes, uint16_t midDelay, uint16_t e
   patternChanged = true; // Trigger a pattern restart for patterns that are unchanging
   showColumn();
 }
+
+// Reset indexes and flags
+void resetIndexesFlags() {
+  pat_i_0 = 0;
+  pat_i_1 = 0;
+  pat_i_2 = 0;
+  patternChanged = true;
+  patternComplete = false;
+
+  // Set brightness back to what it was if it was changed for a pattern
+  if (tempSavedBrightness > 0) {
+    strip.setBrightness(tempSavedBrightness);
+    tempSavedBrightness = 0;
+  }
+}
+
+void loop() {  
+  showPattern();
+  checkButtonPress();
+  
+  // Some example procedures showing how to display to the pixels:
+  /*
+  oldColorWipe(strip.Color(25, 0, 0), 20); // Red
+  oldColorWipe(strip.Color(50, 50, 20), 200); // White
+  oldColorWipe(strip.Color(0, 255, 0), 20); // Green
+  oldColorWipe(strip.Color(0, 0, 255), 50); // Blue
+  oldColorWipe(strip.Color(0, 0, 0, 255), 50); // White RGBW
+  Send a theater pixel chase in...
+  theaterChase(strip.Color(127, 127, 127), 50); // White
+  theaterChase(strip.Color(127, 0, 0), 50); // Red
+  theaterChase(strip.Color(0, 0, 127), 50); // Blue
+
+  rainbow(20);
+  rainbowCycle(20);
+  theaterChaseRainbow(50);
+  */
+}
+
+// Fill the pixels one after another with a color
+/*
+void oldColorWipe(uint32_t c, uint8_t wait) {
+  for(uint16_t i=0; i<strip.numPixels(); i++) {
+    strip.setPixelColor(i, c);
+    strip.show();
+    delay(wait);
+  }
+}
+*/
+/*
+void rainbow(uint8_t wait) {
+  uint16_t i, j;
+  
+  for(j=0; j<256; j++) {
+    for(i=0; i<strip.numPixels(); i++) {
+      strip.setPixelColor(i, Wheel((i+j) & 255));
+    }
+    strip.show();
+    delay(wait);
+  }
+}
+*/
+
+// Slightly different, this makes the rainbow equally distributed throughout
+/*
+void rainbowCycle(uint8_t wait) {
+  uint16_t i, j;
+
+  for(j=0; j<256*5; j++) { // 5 cycles of all colors on wheel
+    for(i=0; i< strip.numPixels(); i++) {
+      strip.setPixelColor(i, Wheel(((i * 256 / strip.numPixels()) + j) & 255));
+    }
+    strip.show();
+    delay(wait);
+  }
+}
+*/
+
+//Theatre-style crawling lights.
+/*
+void theaterChase(uint32_t c, uint8_t wait) {
+  for (int j=0; j<10; j++) {  //do 10 cycles of chasing
+    for (int q=0; q < 3; q++) {
+      for (uint16_t i=0; i < strip.numPixels(); i=i+3) {
+        strip.setPixelColor(i+q, c);    //turn every third pixel on
+      }
+      strip.show();
+
+      delay(wait);
+
+      for (uint16_t i=0; i < strip.numPixels(); i=i+3) {
+        strip.setPixelColor(i+q, 0);        //turn every third pixel off
+      }
+    }
+  }
+}
+*/
+
+//Theatre-style crawling lights with rainbow effect
+/*
+void theaterChaseRainbow(uint8_t wait) {
+  for (int j=0; j < 256; j++) {     // cycle all 256 colors in the wheel
+    for (int q=0; q < 3; q++) {
+      for (uint16_t i=0; i < strip.numPixels(); i=i+3) {
+        strip.setPixelColor(i+q, Wheel( (i+j) % 255));    //turn every third pixel on
+      }
+      strip.show();
+
+      delay(wait);
+
+      for (uint16_t i=0; i < strip.numPixels(); i=i+3) {
+        strip.setPixelColor(i+q, 0);        //turn every third pixel off
+      }
+    }
+  }
+}
+*/
+
+// Displays diamonds
+/*
+void pattern2() {
+  // Note: this solution prints the whole pattern before returning
+  uint32_t color1 = COLORS[0]; // red
+  uint32_t color2 = COLORS[1]; // green
+  uint8_t row_i = 0;
+    
+  uint8_t height = 15;
+  uint8_t c, k, space = 1;
+
+  // if pattern is at the beginning
+//  if (pat_i
+
+  space = height - 1;
+
+  while (row_i < strip.numPixels()) {
+    // Top half, if printed
+    // Left half, if on stick
+    for (k = 1; k <= height; k++) {
+      for (c = 1; c <= space; c++) {
+        if (row_i >= strip.numPixels())
+          break;
+        patternColumn[row_i] = color1;
+        row_i++;
+      }
+      for (c = 1; c <= 2*k-1;c++) {
+        if (row_i >= strip.numPixels())
+          break;
+        patternColumn[row_i] = color2;
+        row_i++;
+      }
+      for (c = 1; c <= space; c++) {
+        if (row_i >= strip.numPixels())
+          break;
+        patternColumn[row_i] = color1;
+        row_i++;
+      }
+      showColumn();
+      if (row_i >= strip.numPixels())
+        break;
+          
+      space--;
+    }
+  
+    // Bottom half, if printed
+    // Right half, if on stick
+    for (k = 1; k <= height - 1; k++) {
+      for (c= 1; c <= space; c++) {
+        if (row_i >= strip.numPixels())
+          break;
+        patternColumn[row_i] = color1;
+        row_i++;
+      }
+      for (c = 1; c <= 2*(height - k)-1; c++) {
+        if (row_i >= strip.numPixels())
+          break;
+        patternColumn[row_i] = color2;
+        row_i++;
+      }
+      for (c= 1; c <= space; c++) {
+        if (row_i >= strip.numPixels())
+          break;
+        patternColumn[row_i] = color1;
+        row_i++;
+      }
+      if (row_i >= strip.numPixels())
+        break;
+      space++;
+    }
+  }
+}
+*/
+
+// Stretched Diamond
+// This function should stretch the pattern in the array pat by the factor stretch, and
+// then flip it vertically and print the bottom half.
+/*
+void pattern3() {
+  int pixel_i = 0;
+  uint32_t c1 = COLORS[0]; // red
+  uint32_t c2 = COLORS[1]; // green
+  int height = 7;
+  int width = 13;
+  int stretch = 3; // factor by which we are stretching the pattern vertically
+  int pat[height][width] = {
+    {0,0,0,0,0,0,1,0,0,0,0,0,0},
+    {0,0,0,0,0,1,1,1,0,0,0,0,0},
+    {0,0,0,0,1,1,1,1,1,0,0,0,0},
+    {0,0,0,1,1,1,1,1,1,1,0,0,0},
+    {0,0,1,1,1,1,1,1,1,1,1,0,0},
+    {0,1,1,1,1,1,1,1,1,1,1,1,0},
+    {1,1,1,1,1,1,1,1,1,1,1,1,1}
+  };
+
+  int r; // needs to be in this scope
+  for (int c=0; c < width; c++) {
+    // top half
+    for (r=0; r < height; r++) {
+      for (int repeat_i=0; repeat_i < stretch; repeat_i++) {
+        if (pixel_i >= strip.numPixels())
+          break;
+        
+        patternColumn[pixel_i] = pat[r][c] ? c1 : c2;
+        pixel_i++;
+      }
+      if (pixel_i >= strip.numPixels())
+        break;
+    }
+    // bottom half
+    for (r=r-2; r > 0; r--) {
+      for (int repeat_i=0; repeat_i < stretch; repeat_i++) {
+
+        if (pixel_i >= strip.numPixels())
+          break;
+        
+        patternColumn[pixel_i] = pat[r][c] ? c1 : c2;
+        pixel_i++;
+      }
+      if (pixel_i >= strip.numPixels())
+        break;
+    }
+    showColumn();
+    
+    if (pixel_i >= strip.numPixels())
+      break;
+  }
+}
+*/
