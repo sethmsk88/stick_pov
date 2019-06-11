@@ -636,7 +636,7 @@ void showPattern() {
       colorWipe(5);
       break;
     case 3:
-      pattern5();
+      stackingAnimation();
       break;
     case 4:
       pattern8();
@@ -843,39 +843,57 @@ void pattern4() {
   }
 }
 
-void pattern5() {
+// Stacking animation
+void stackingAnimation() {
   int numColors = getNumColors();
   bool isPOVColor = isPOVColorIndex(selectedPatternColorIdx);
   int colorIterations = isPOVColor ? 2 : 1; // 2 colors for POV
+  int numPixels = strip.numPixels();
   uint32_t color;
+  uint8_t travelGroupSize = 3;
+
+  // pat_i_0 is the last pixel in the traveling range
+  // pat_i_1 is
+
+  // Serial.println("i_0: " + (String)pat_i_0);
+  // Serial.println("i_1: " + (String)pat_i_1);
 
   if (patDirection == 0) {
     // Reset indexes when needed
     if (pat_i_0 == 0) {
-      pat_i_0 = strip.numPixels() - 1;
+      pat_i_0 = numPixels - 1;
     }
     if (pat_i_1 == pat_i_0) {
-      pat_i_0--;
+      pat_i_0 = (pat_i_0 - travelGroupSize > 0) ? pat_i_0 - travelGroupSize : 0;
       pat_i_1 = 0;
     }
-  
+
     for (int c=0; c < colorIterations; c++) {
       // Get the color
       color = isPOVColor ? COLORS[ COLORS_POV[selectedPatternColorIdx - numColors][c] ] : COLORS[selectedPatternColorIdx];
 
-      // Make a single pixel travel down the stick
-      for (int travel_i = 0; travel_i < pat_i_0; travel_i++) {
-        if (travel_i == pat_i_1) {
+      // Serial.println(F("travel_i: "));
+
+      // Make 3 pixels travel down the stick
+      for (int travel_i = 2; travel_i < pat_i_0; travel_i++) {
+        if (travel_i == pat_i_1 || travel_i == pat_i_1 - 1 || travel_i == pat_i_1 - 2) {
+          patternColumn[travel_i - 2] = color;
+          patternColumn[travel_i - 1] = color;
           patternColumn[travel_i] = color;
+          // Serial.print(F("1"));
         } else {
           patternColumn[travel_i] = 0; // BLACK
+          // Serial.print(F("0"));
         }
       }
     
       // Turn on the lit pixels
-      for (int lit_i = pat_i_0; lit_i < strip.numPixels(); lit_i++) {
+      for (int lit_i = pat_i_0; lit_i < numPixels; lit_i++) {
         patternColumn[lit_i] = color;
+        // Serial.print(F("1"));
       }
+
+      // Serial.println("");
       
       // Insert POV delay if POV color
       if (isPOVColor) {
@@ -890,41 +908,47 @@ void pattern5() {
     // Reset indexes when needed
     if (patternChanged) {
       // Initialize this index when this when the pattern is first changed
-      pat_i_1 = strip.numPixels() - 1;
+      pat_i_1 = numPixels - 1;
       patternChanged = false;
     }
-    if (pat_i_0 == strip.numPixels() - 1) {
+    if (pat_i_0 == numPixels - 1) {
       pat_i_0 = 0; // reset to 1 instead of 0 because of base case problem
     }
     if (pat_i_1 == pat_i_0) {
-      pat_i_0++;
-      pat_i_1 = strip.numPixels() - 1;
+      // pat_i_0++;
+      pat_i_0 = (pat_i_0 + travelGroupSize <= numPixels - 1) ? pat_i_0 + travelGroupSize : numPixels - 1;
+      pat_i_1 = numPixels - 1;
     }
   
     for (int c=0; c < colorIterations; c++) {
+      // Get the color
+      color = isPOVColor ? COLORS[ COLORS_POV[selectedPatternColorIdx - numColors][c] ] : COLORS[selectedPatternColorIdx];
+
+      // Serial.println(F("travel_i: "));
+
       // Make a single pixel travel down the stick
-      for (int travel_i = strip.numPixels() - 1; travel_i > pat_i_0; travel_i--) {
-        if (travel_i == pat_i_1) {
-          if (isPOVColor) {
-            // get the first then second color in the POV color
-            patternColumn[travel_i] = COLORS[ COLORS_POV[selectedPatternColorIdx - numColors][c] ];
-          } else {
-            patternColumn[travel_i] = COLORS[selectedPatternColorIdx];
-          }
+      for (int travel_i = numPixels - 1; travel_i > pat_i_0 + 2; travel_i--) {
+        if (travel_i == pat_i_1 || travel_i == pat_i_1 + 1 || travel_i == pat_i_1 + 2) {
+          patternColumn[travel_i + 2] = color;
+          patternColumn[travel_i + 1] = color;
+          patternColumn[travel_i] = color;
+
+          // Serial.print(F("1"));
         } else {
           patternColumn[travel_i] = 0; // BLACK
+
+          // Serial.print(F("0"));
         }
       }
     
       // Turn on the lit pixels
       for (int lit_i = pat_i_0; lit_i >= 0; lit_i--) {
-        if (isPOVColor) {
-          // get the first then second color in the POV color
-          patternColumn[lit_i] = COLORS[ COLORS_POV[selectedPatternColorIdx - numColors][c] ];
-        } else {
-          patternColumn[lit_i] = COLORS[selectedPatternColorIdx];
-        }
+        patternColumn[lit_i] = color;
+
+        // Serial.print(F("1"));
       }
+
+      // Serial.println("");
       
       // Insert POV delay if POV color
       if (isPOVColor) {
