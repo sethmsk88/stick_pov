@@ -67,7 +67,7 @@ unsigned long buttonPressStartTime = 0;
 unsigned long noIRSignalDelay = 150; // if there are no IR signals for this amount of time, then we can say there are no active IR signals
 int patDirection = 0;
 boolean patternReverse = false;
-uint8_t tempSavedBrightness = 0; // used for patterns that alter brightness (must init to 0)
+uint8_t patternStartingBrightness = 0; // used for patterns that alter brightness (must init to 0)
 
 unsigned long buttonHoldStartTime = 0;
 
@@ -478,6 +478,16 @@ void changeBrightness(int difference) {
   int minBrightness = 20;
   int maxBrightness = 230; // 90% of 255
   uint8_t currentBrightness = strip.getBrightness();
+
+  // Toggle patternChanged flag if user is in a pattern that relies on brightness
+  // and set brightness to the starting brightness of the pattern
+  if (selectedPatternIdx == 4) {
+    if (patternStartingBrightness > 0) {
+      currentBrightness = patternStartingBrightness;
+    }
+    resetIndexesFlags();
+  }
+  
   int newBrightness = currentBrightness + difference;
 
   // change the brightness level
@@ -626,7 +636,7 @@ void showPattern() {
       patternOff();
       break;
     case 0:
-      pattern4();
+      rainbow();
       break;
     case 1:
       speedDelay = 0; // This pattern resets animation delay
@@ -639,7 +649,7 @@ void showPattern() {
       stackingAnimation();
       break;
     case 4:
-      pattern8();
+      breatheAnimation();
       break;
     case 5:
       pattern9();
@@ -843,7 +853,7 @@ void colorFade() {
 }
 
 // Rainbow
-void pattern4() {
+void rainbow() {
   uint16_t pat_i_0_max = 256;
   uint16_t pat_i_1_max = strip.numPixels();
 
@@ -984,8 +994,8 @@ void stackingAnimation() {
   }
 }
 
-// Pulsating glow effect
-void pattern8() {
+// Breathe Animation
+void breatheAnimation() {
   // NOTE: In order to change the top-end brightness of this pattern, user
   // must switch to a different pattern, change the brightness, and then switch back.
 
@@ -995,7 +1005,7 @@ void pattern8() {
   uint32_t color;
 
   uint8_t minPatternBrightness = 10;
-  int numRepeats = 8;
+  int numRepeats = 4;
   
   // Loop the brightness from minBrightness up to the brightness
   // setting the user has set.
@@ -1004,7 +1014,10 @@ void pattern8() {
     pat_i_0 = strip.getBrightness(); // pat_i_0 is the max brightness
     pat_i_1 = pat_i_0;
     patternChanged = false;
-    tempSavedBrightness = pat_i_0;
+    patternStartingBrightness = pat_i_0;
+
+    // Serial.print(F("Max breathe brightness: "));
+    // Serial.println(pat_i_0);
   }
 
   for (int c=0; c < colorIterations; c++) {
@@ -1179,9 +1192,9 @@ void resetIndexesFlags() {
   patternComplete = false;
 
   // Set brightness back to what it was if it was changed for a pattern
-  if (tempSavedBrightness > 0) {
-    strip.setBrightness(tempSavedBrightness);
-    tempSavedBrightness = 0;
+  if (patternStartingBrightness > 0) {
+    strip.setBrightness(patternStartingBrightness);
+    patternStartingBrightness = 0;
   }
 }
 
