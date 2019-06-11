@@ -124,8 +124,8 @@ void changeNumLEDs(int difference) {
     EEPROM.update(NUM_LEDS_SAVED_ADDR, (uint8_t)strip.numPixels());
   }
 
-  Serial.print(F("Num LEDs: "));
-  Serial.println((String)strip.numPixels());
+  // Serial.print(F("Num LEDs: "));
+  // Serial.println((String)strip.numPixels());
 }
 
 // Initialize EEPROM memory addresses that we plan to use
@@ -398,9 +398,9 @@ void checkButtonPress() {
 
     pendingButtonPress = 0; // clear value
 
-    Serial.print(F("Button ["));
-    Serial.print(RemoteControlRoku::getBtnDescription(buttonActionVal));
-    Serial.println(F("]"));
+    // Serial.print(F("Button ["));
+    // Serial.print(RemoteControlRoku::getBtnDescription(buttonActionVal));
+    // Serial.println(F("]"));
   }
 }
 
@@ -521,8 +521,8 @@ void changePOVSpeed(int difference) {
 
   POVSpeedDelay = newPOVSpeed;
 
-  Serial.print(F("POV Speed Delay: "));
-  Serial.println((String)POVSpeedDelay);
+  // Serial.print(F("POV Speed Delay: "));
+  // Serial.println((String)POVSpeedDelay);
 }
 
 // Change animation speed
@@ -539,8 +539,8 @@ void changeAnimationSpeed(int difference) {
 
   speedDelay = newAnimationSpeed;
 
-  Serial.print(F("Animation Speed Delay: "));
-  Serial.println((String)speedDelay);
+  // Serial.print(F("Animation Speed Delay: "));
+  // Serial.println((String)speedDelay);
 }
 
 // Change direction of pattern
@@ -662,6 +662,28 @@ void patternOff() {
 void sixColorPOV() {  
   int colorIndexes[] = {2,1,0,6,7,3};
   int numColors = sizeof(colorIndexes) / sizeof(*colorIndexes);
+
+  // Make sure brightness is set to a safe value for all colors in this pattern
+  // ONLY run this once when changing to the pattern
+  uint8_t maxBrightness = 230; // 90% of 255
+  uint8_t colorSetMaxBrightness = maxBrightness;
+  uint8_t tempBrightness;
+  uint8_t currentBrightness = strip.getBrightness();
+  if (patternChanged) {
+    for (int c=0; c < numColors; c++) {
+      tempBrightness = makeSafeBrightness(colorSetMaxBrightness, colorIndexes[c], 0);
+      if (tempBrightness < colorSetMaxBrightness) {
+        colorSetMaxBrightness = tempBrightness;
+      }
+    }
+
+    if (colorSetMaxBrightness < currentBrightness) {
+      strip.setBrightness(colorSetMaxBrightness);
+      showColumn();
+      // Serial.print(F("Brightness changed: "));
+      // Serial.println(colorSetMaxBrightness);
+    }
+  }
 
   for (uint8_t j=0; j < strip.numPixels(); j++) {
     patternColumn[j] = COLORS[colorIndexes[pat_i_0]];
