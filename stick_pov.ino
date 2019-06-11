@@ -40,7 +40,7 @@ const uint32_t COLORS[] = {
   0x90FF00, // 7 - ORANGE
   0xFFFFFF, // 8 - WHITE
 };
-const uint8_t COLORS_POV[][2] = {{0,1},{0,2},{1,2}}; // combinations of color indexes for POV
+const uint8_t COLORS_POV[][2] = {{0,1},{0,2},{1,2},{0,4},{6,7},{1,7},{4,6}}; // combinations of color indexes for POV
 
 uint8_t defaultBrightness = 160;//105; // Default is set to 50% of the brightness range
 
@@ -652,7 +652,7 @@ void showPattern() {
       breatheAnimation();
       break;
     case 5:
-      pattern9();
+      twinkle();
       break;
     case 6:
       colorWipeLoop();
@@ -1088,8 +1088,8 @@ void breatheAnimation() {
   }
 }
 
-// Twinkle effect
-void pattern9() {
+// Twinkle Animation
+void twinkle() {
   int numColors = getNumColors();
   bool isPOVColor = isPOVColorIndex(selectedPatternColorIdx);
   int colorIterations = isPOVColor ? 2 : 1; // 2 colors for POV
