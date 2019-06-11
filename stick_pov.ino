@@ -61,8 +61,6 @@ uint8_t speedDelay = 0; // ms of delay between showing columns
 uint8_t maxSpeedDelay = 45;
 int POVSpeedDelay = 16;
 const int POVSpeedDelayMax = 50;
-uint8_t speedIncrement = 1;
-int POVSpeedIncrement = 1;
 uint16_t lastButtonPress = 0;
 uint16_t pendingButtonPress = 0; // IR value for button press
 unsigned long buttonPressStartTime = 0;
@@ -389,16 +387,12 @@ void checkButtonPress() {
         changeDirection();
         break;
       case RemoteControlRoku::BTN_FASTFORWARD:
-        increaseSpeed();
-        break;
       case RemoteControlRoku::BTN_FASTFORWARD_HOLD:
-        increasePOVSpeed();
+        changeSpeed(-1); // negative value speeds up animation
         break;
       case RemoteControlRoku::BTN_REWIND:
-        decreaseSpeed();
-        break;
       case RemoteControlRoku::BTN_REWIND_HOLD:
-        decreasePOVSpeed();
+        changeSpeed(1); // positive value slows down animation
         break;
     }
 
@@ -506,70 +500,47 @@ void changeBrightness(int difference) {
   showColumn();
 }
 
-// Increase speed of pattern
-void increaseSpeed() {
-  if (speedDelay <= 0) {
-    speedDelay = 0;
-    // Serial.println("Maximum speed");
-    alertUser(COLORS[0], 2, 50, 200);
+void changeSpeed(int difference) {
+  // If currently on colorWipe or sixColorPOV, change POV speed; otherwise, change animation speed
+  if (selectedPatternIdx == 1 || selectedPatternIdx == 2) {
+    changePOVSpeed(difference);
   } else {
-    // Prevent unsigned int math going negative
-    if ((int)speedDelay - (int)speedIncrement < 0) {
-      speedDelay = 0;
-      // Serial.println("Maximum speed");
-      alertUser(COLORS[0], 2, 50, 200);
-    } else {
-      speedDelay -= speedIncrement;
-    }
+    changeAnimationSpeed(difference);
   }
-  Serial.print(F("Speed Delay: "));
-  Serial.println((String)speedDelay);
 }
 
-// Decrease speed of pattern
-void decreaseSpeed() {
-  if (speedDelay >= maxSpeedDelay) {
-    speedDelay = maxSpeedDelay;
-    // Serial.println("Minimum speed");
-    alertUser(COLORS[0], 2, 50, 200);
-  } else {
-    speedDelay += speedIncrement;
-  }
-  Serial.print(F("Speed Delay: "));
-  Serial.println((String)speedDelay);
-}
+void changePOVSpeed(int difference) {
+  int newPOVSpeed = POVSpeedDelay + difference;
 
-// Increase speed of POV effect
-void increasePOVSpeed() {
-  if (POVSpeedDelay <= 0) {
-    POVSpeedDelay = 0;
-    // Serial.println("Maximum POV speed");
+  if (newPOVSpeed <= 0) {
+    newPOVSpeed = 0;
     alertUser(COLORS[0], 2, 50, 200);
-  } else {
-    if (POVSpeedDelay - POVSpeedIncrement < 0) {
-      POVSpeedDelay = 0;
-      // Serial.println("Maximum POV speed");
-    } else {
-      POVSpeedDelay -= POVSpeedIncrement;
-    }
-    alertUser(0, 1, 0, 400); // Flash stick black for half a second
+  } else if (newPOVSpeed > POVSpeedDelayMax) {
+    newPOVSpeed = POVSpeedDelayMax;
   }
+
+  POVSpeedDelay = newPOVSpeed;
+
   Serial.print(F("POV Speed Delay: "));
   Serial.println((String)POVSpeedDelay);
 }
 
-// Decrease speed of POV effect
-void decreasePOVSpeed() {
-  if (POVSpeedDelay >= POVSpeedDelayMax) {
-    POVSpeedDelay = POVSpeedDelayMax;
-    // Serial.println("Minimum POV speed");
+// Change animation speed
+void changeAnimationSpeed(int difference) {
+  int newAnimationSpeed = speedDelay + difference;
+
+  if (newAnimationSpeed < 0) {
+    newAnimationSpeed = 0;
     alertUser(COLORS[0], 2, 50, 200);
-  } else {
-    POVSpeedDelay += POVSpeedIncrement;
-    alertUser(0, 1, 0, 500); // Flash stick black for half a second
+  } else if (newAnimationSpeed > maxSpeedDelay) {
+    newAnimationSpeed = maxSpeedDelay;
+    alertUser(COLORS[0], 2, 50, 200);
   }
-  Serial.print(F("POV Speed Delay: "));
-  Serial.println((String)POVSpeedDelay);
+
+  speedDelay = newAnimationSpeed;
+
+  Serial.print(F("Animation Speed Delay: "));
+  Serial.println((String)speedDelay);
 }
 
 // Change direction of pattern
@@ -658,6 +629,7 @@ void showPattern() {
       pattern4();
       break;
     case 1:
+      speedDelay = 0; // This pattern resets animation delay
       sixColorPOV();
       break;
     case 2:
@@ -695,6 +667,7 @@ void sixColorPOV() {
     patternColumn[j] = COLORS[colorIndexes[pat_i_0]];
   }
   showColumn();
+
   delay(POVSpeedDelay);
 
   // Increment color index (loop index to beginning)
