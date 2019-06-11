@@ -38,9 +38,11 @@ const uint32_t COLORS[] = {
   0x00FFFF, // 5 - MAGENTA
   0x004D99, // 6 - PURPLE
   0x90FF00, // 7 - ORANGE
-  0xFFFFFF, // 8 - WHITE
+  0xFF0000, // 8 - BRIGHT_GREEN
+  0xFFFFFF, // 9 - WHITE
 };
-const uint8_t COLORS_POV[][2] = {{0,1},{0,2},{1,2},{0,4},{6,7},{1,7},{4,6}}; // combinations of color indexes for POV
+const uint8_t COLORS_POV[][2] = {{0,8},{0,2},{8,2},{0,4},{6,7},{8,7},{4,6}}; // combinations of color indexes for POV
+const uint8_t COLORS_POV3[][3] = {{0,8,2}};
 
 uint8_t defaultBrightness = 160;//105; // Default is set to 50% of the brightness range
 
@@ -567,16 +569,20 @@ void changeDirection() {
 
 // Change color of pattern if it can be manually changed
 void changeColor(int colorIndexModifier) {
-  int numColors = sizeof(COLORS) / sizeof(*COLORS);
-  int numPOVColors = sizeof(COLORS_POV) / sizeof(*COLORS_POV);
+  int numColors = getNumColors();
+  int numPOVColors = getNumPOVColors();
+  int numPOV3Colors = getNumPOV3Colors();
+  int totalNumColors = numColors + numPOVColors + numPOV3Colors;
   selectedPatternColorIdx += colorIndexModifier;
 
   // Wrap around pattern color indexes
   if (selectedPatternColorIdx < 0) {
-    selectedPatternColorIdx = numColors + numPOVColors - 1;
-  } else if (selectedPatternColorIdx >= numColors + numPOVColors) {
+    selectedPatternColorIdx = totalNumColors - 1;
+  } else if (selectedPatternColorIdx >= totalNumColors) {
     selectedPatternColorIdx = 0;
   }
+
+  // Serial.println("Color_i: " + (String)selectedPatternColorIdx);
 
   changeBrightness(0); // Changing brightness by 0 so that we can make sure the brightness is safe for the new pattern
   resetIndexesFlags();
@@ -585,7 +591,20 @@ void changeColor(int colorIndexModifier) {
 // Returns TRUE if the selected pattern color index is one of the POV color indexes, else returns FALSE
 bool isPOVColorIndex(int idx) {
   int numColors = sizeof(COLORS) / sizeof(*COLORS);
-  return idx >= numColors ? true : false;
+  int numPOVColors = sizeof(COLORS_POV) / sizeof(*COLORS_POV);
+
+  if (idx >= numColors && (idx < numColors + numPOVColors)) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+// Returns TRUE if the selected pattern color index is one of the POV color indexes, else returns FALSE
+bool isPOV3ColorIndex(int idx) {
+  int numColors = sizeof(COLORS) / sizeof(*COLORS);
+  int numPOVColors = sizeof(COLORS_POV) / sizeof(*COLORS_POV);
+  return (idx >= (numColors + numPOVColors)) ? true : false;
 }
 
 // Returns the number of colors in the COLORS array
@@ -597,6 +616,27 @@ int getNumColors() {
 // Returns the number of POV colors in the COLORS_POV array
 uint8_t getNumPOVColors() {
   return sizeof(COLORS_POV) / sizeof(*COLORS_POV);
+}
+
+// Returns the number of POV3 colors in the COLORS_POV3 array
+uint8_t getNumPOV3Colors() {
+  return sizeof(COLORS_POV3) / sizeof(*COLORS_POV3);
+}
+
+int getNumColorsInPOV(int colorIdx) {
+  int numColors = sizeof(COLORS) / sizeof(*COLORS);
+  int numPOVColors = sizeof(COLORS_POV) / sizeof(*COLORS_POV);
+  int numPOV3Colors = sizeof(COLORS_POV3) / sizeof(*COLORS_POV3);
+
+  if (colorIdx >= numColors) {
+    if (colorIdx >= numColors + numPOVColors) {
+      return 3;
+    } else {
+      return 2;
+    }
+  } else {
+    return 1;
+  }
 }
 
 // Set the all pixels on the strip to the values in the patternColumn array
@@ -709,20 +749,28 @@ void sixColorPOV() {
 // Color Wipe
 void colorWipe(uint8_t msDelay, int colorIdx) {
   int numColors = getNumColors();
+  int numPOVColors = getNumPOVColors();
   bool isPOVColor = isPOVColorIndex(selectedPatternColorIdx);
-  int colorIterations = isPOVColor ? 2 : 1; // 2 colors for POV
+  bool isPOV3Color = isPOV3ColorIndex(selectedPatternColorIdx);
+  int colorIterations = getNumColorsInPOV(selectedPatternColorIdx);
   uint32_t color;
 
   for (int c=0; c < colorIterations; c++) {
     // Get the color
-    color = isPOVColor ? COLORS[ COLORS_POV[selectedPatternColorIdx - numColors][c] ] : COLORS[selectedPatternColorIdx];
+    if (isPOVColor) {
+      color = COLORS[ COLORS_POV[selectedPatternColorIdx - numColors][c] ];
+    } else if (isPOV3Color) {
+      color = COLORS[ COLORS_POV3[selectedPatternColorIdx - numColors - numPOVColors][c] ];
+    } else {
+      color = COLORS[selectedPatternColorIdx];
+    }
 
     for (uint8_t i=0; i <= pat_i_0; i++) {
       patternColumn[i] = color;
     }
 
     // Insert POV delay if POV color
-    if (isPOVColor) {
+    if (isPOVColor || isPOV3Color) {
       delay(POVSpeedDelay);
     }
 
@@ -746,15 +794,24 @@ void colorWipeLoop() {
   // pat_i_0 is the index of the pixel we are currently filling up to for the animation (aka animation index)
   // pat_i_1 is the color index
   bool isPOVColor = isPOVColorIndex(pat_i_1);
-  uint8_t colorIterations = 2; // 2 colors for POV - Also doing solid colors for 2 iterations to keep the animation timing in sync
+  bool isPOV3Color = isPOV3ColorIndex(pat_i_1);
+  uint8_t colorIterations = isPOV3Color ? 3 : 2; // 2 or 3 colors for POV - Also doing solid colors for 2 iterations to keep the animation timing in sync
   uint32_t color;
   int numColors = getNumColors();
-  uint8_t totalNumColors = ((uint8_t)numColors) + getNumPOVColors();
+  int numPOVColors = getNumPOVColors();
+  int numPOV3Colors = getNumPOV3Colors();
+  int totalNumColors = numColors + numPOVColors + numPOV3Colors;
   uint16_t numPixels = strip.numPixels();
 
   for (int c=0; c < colorIterations; c++) {
     // Get the color
-    color = isPOVColor ? COLORS[ COLORS_POV[pat_i_1 - numColors][c] ] : COLORS[pat_i_1];
+    if (isPOVColor) {
+      color = COLORS[ COLORS_POV[pat_i_1 - numColors][c] ];
+    } else if (isPOV3Color) {
+      color = COLORS[ COLORS_POV3[pat_i_1 - numColors - numPOVColors][c] ];
+    } else {
+      color = COLORS[pat_i_1];
+    }
 
     // Light the pixels
     if (patDirection == 0) {
@@ -767,7 +824,7 @@ void colorWipeLoop() {
       }
     }
 
-    // Insert POV delay if POV color
+    // Insert POV delay
     delay(POVSpeedDelay);
     
     showColumn();
@@ -779,10 +836,6 @@ void colorWipeLoop() {
     if (pat_i_0 == numPixels - 1) {
       animationComplete = true;
       pat_i_0 = 0; // reset animation index
-      
-      // Advance the color index
-      // Loop back to the first color if we reached the last color, else, increment color index
-      pat_i_1 = (pat_i_1 == totalNumColors - 1) ? 0 : pat_i_1 + 1;
     } else {
       pat_i_0++;
     }
