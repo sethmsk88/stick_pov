@@ -53,7 +53,7 @@ const uint8_t MAX_LEDS = 60;
 uint32_t patternColumn[MAX_LEDS] = {};
 int selectedPatternIdx = 0; // default pattern index
 int selectedPatternColorIdx = 0; // default color index
-uint8_t numPatterns = 8;
+uint8_t numPatterns = 9;
 boolean patternChanged = true;
 boolean patternComplete = false; // used when a pattern should only show once
 int pat_i_0 = 0; // an index to track progress of a pattern
@@ -700,6 +700,9 @@ void showPattern() {
     case 7:
       colorFade();
       break;
+    case 8:
+      chase(4);
+      break;
   }
 }
 
@@ -926,6 +929,49 @@ void rainbow() {
     showColumn();
     return;
   }
+}
+
+void chase(uint8_t groupSize) {
+  uint32_t color;
+  int numPixels = strip.numPixels();
+  int numColors = getNumColors();
+  int numPOVColors = getNumPOVColors();
+  bool isPOVColor = isPOVColorIndex(selectedPatternColorIdx);
+  bool isPOV3Color = isPOV3ColorIndex(selectedPatternColorIdx);
+  int colorIterations = getNumColorsInPOV(selectedPatternColorIdx);
+  
+
+  for (int c=0; c < colorIterations; c++) {
+    // Get the color
+    if (isPOVColor) {
+      color = COLORS[ COLORS_POV[selectedPatternColorIdx - numColors][c] ];
+    } else if (isPOV3Color) {
+      color = COLORS[ COLORS_POV3[selectedPatternColorIdx - numColors - numPOVColors][c] ];
+    } else {
+      color = COLORS[selectedPatternColorIdx];
+    }
+
+    for (int pixel_i=0; pixel_i < numPixels; pixel_i++) {
+      if ((pixel_i + pat_i_0) % (groupSize * 2) < groupSize) {
+        patternColumn[pixel_i] = color;
+        // Serial.print(F("1 "));
+      } else {
+        patternColumn[pixel_i] = 0;
+        // Serial.print(F("0 "));
+      }
+    }
+    showColumn();
+
+    // Insert POV delay if POV color
+    if (isPOVColor || isPOV3Color) {
+      delay(POVSpeedDelay);
+    }
+    // Serial.println("");
+  }
+  delay(20); // TODO: Tune this number
+
+  // Increment offset iterator and wraparound
+  pat_i_0 = pat_i_0 < numPixels ? pat_i_0 + 1 : 0;
 }
 
 // Stacking animation
