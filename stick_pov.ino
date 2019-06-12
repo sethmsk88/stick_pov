@@ -53,7 +53,7 @@ const uint8_t MAX_LEDS = 60;
 uint32_t patternColumn[MAX_LEDS] = {};
 int selectedPatternIdx = 0; // default pattern index
 int selectedPatternColorIdx = 0; // default color index
-uint8_t numPatterns = 9;
+uint8_t numPatterns = 10;
 boolean patternChanged = true;
 boolean patternComplete = false; // used when a pattern should only show once
 int pat_i_0 = 0; // an index to track progress of a pattern
@@ -703,6 +703,9 @@ void showPattern() {
     case 8:
       chase(4);
       break;
+    case 9:
+      
+      break;
   }
 }
 
@@ -939,7 +942,12 @@ void chase(uint8_t groupSize) {
   bool isPOVColor = isPOVColorIndex(selectedPatternColorIdx);
   bool isPOV3Color = isPOV3ColorIndex(selectedPatternColorIdx);
   int colorIterations = getNumColorsInPOV(selectedPatternColorIdx);
-  
+
+  // If pattern direction is reversed, initialize iterator to last pixel index
+  if (patternChanged && (patDirection == 1)) {
+    patternChanged = false;
+    pat_i_0 = numPixels - 1;
+  }
 
   for (int c=0; c < colorIterations; c++) {
     // Get the color
@@ -954,10 +962,10 @@ void chase(uint8_t groupSize) {
     for (int pixel_i=0; pixel_i < numPixels; pixel_i++) {
       if ((pixel_i + pat_i_0) % (groupSize * 2) < groupSize) {
         patternColumn[pixel_i] = color;
-        // Serial.print(F("1 "));
+        Serial.print(F("1 "));
       } else {
         patternColumn[pixel_i] = 0;
-        // Serial.print(F("0 "));
+        Serial.print(F("0 "));
       }
     }
     showColumn();
@@ -966,13 +974,19 @@ void chase(uint8_t groupSize) {
     if (isPOVColor || isPOV3Color) {
       delay(POVSpeedDelay);
     }
-    // Serial.println("");
+    Serial.println("");
   }
   delay(20); // TODO: Tune this number
 
   // Increment offset iterator and wraparound
-  pat_i_0 = pat_i_0 < numPixels ? pat_i_0 + 1 : 0;
+  if (patDirection == 0) {
+    pat_i_0 = (pat_i_0 < numPixels) ? (pat_i_0 + 1) : 0;
+  } else {
+    pat_i_0 = (pat_i_0 >= 0) ? (pat_i_0 - 1) : (numPixels -1);
+  }
 }
+
+
 
 // Stacking animation
 void stackingAnimation() {
