@@ -14,6 +14,7 @@
 
 // Function prototypes
 void colorWipe(uint8_t msDelay, int colorIdx = -1);
+void chase(uint8_t groupSize, bool centerOrigin = false);
 
 // Each favorite saves two bytes worth of info, so each is allocated two addresses
 // 1st address contains the index of the saved pattern
@@ -704,7 +705,7 @@ void showPattern() {
       chase(4);
       break;
     case 9:
-      
+      chase(4,true);
       break;
   }
 }
@@ -934,7 +935,7 @@ void rainbow() {
   }
 }
 
-void chase(uint8_t groupSize) {
+void chase(uint8_t groupSize, bool centerOrigin) {
   uint32_t color;
   int numPixels = strip.numPixels();
   int numColors = getNumColors();
@@ -942,6 +943,7 @@ void chase(uint8_t groupSize) {
   bool isPOVColor = isPOVColorIndex(selectedPatternColorIdx);
   bool isPOV3Color = isPOV3ColorIndex(selectedPatternColorIdx);
   int colorIterations = getNumColorsInPOV(selectedPatternColorIdx);
+  int offsetIdx;
 
   // If pattern direction is reversed, initialize iterator to last pixel index
   if (patternChanged && (patDirection == 1)) {
@@ -959,8 +961,27 @@ void chase(uint8_t groupSize) {
       color = COLORS[selectedPatternColorIdx];
     }
 
+    offsetIdx = pat_i_0;
+
+    // Serial.println(F("pixel_i  pat_i_0  offsetIdx"));
+    // Serial.println("offset_" + (String)offsetIdx + " ");
+
     for (int pixel_i=0; pixel_i < numPixels; pixel_i++) {
-      if ((pixel_i + pat_i_0) % (groupSize * 2) < groupSize) {
+      
+      // This causes the chasing animation to originate from the center of the stick
+      if (centerOrigin) {
+        // Reverse direction of animation half way down the light strip
+        if (pixel_i > (numPixels / 2 - 1)) {
+          offsetIdx = pat_i_0 * -1;
+        }
+      }
+
+      // Serial.print((String)pixel_i + "       ");
+      // Serial.print((String)pat_i_0 + "       ");
+      // Serial.println((String)offsetIdx);
+    
+      // Serial.print((String)((pixel_i + offsetIdx) % (groupSize * 2)) + "  ");
+      if (abs((pixel_i + offsetIdx) % (groupSize * 2)) < groupSize) {
         patternColumn[pixel_i] = color;
         Serial.print(F("1 "));
       } else {
@@ -986,7 +1007,42 @@ void chase(uint8_t groupSize) {
   }
 }
 
+// Small color groups traveling up the stick one after another
+/*
+void chaseRainbow(uint8_t groupSize) {
+  int colorIndexSet[] = {0,1,2};
+  int numColors = sizeof(colorIndexSet) / sizeof(*colorIndexSet);
+  int numPixels = strip.numPixels();
+  // bool pixelOn = false;
+  // int pixel_i = 0;
 
+  // Use modulus to figure out which color to show based on pixel number
+  // while (pixel_i < numPixels) {
+  //   patternColumn[pixel_i] = COLORS[0];
+  // }
+  for (int pixel_i=0; pixel_i < numPixels; pixel_i++) {
+    // patternColumn[pixel_i] = COLORS[colorIndexSet[pixel_i % numColors]];
+    if ((pixel_i + pat_i_0) % (groupSize * 2) < groupSize) {
+      patternColumn[pixel_i] = COLORS[0];
+      Serial.print(F("1 "));
+    } else {
+      patternColumn[pixel_i] = 0;
+      Serial.print(F("0 "));
+    }
+    // for (int j=0; j < groupSize; j++) {
+    //   pixel_i++;
+    //   patternColumn[pixel_i] = COLORS[0];
+    // }
+    // Serial.print(F(""));
+  }
+  showColumn();
+  Serial.println("");
+
+  // Increment iterator and wraparound
+  pat_i_0 = pat_i_0 < numPixels ? pat_i_0 + 1 : 0;
+
+}
+*/
 
 // Stacking animation
 void stackingAnimation() {
