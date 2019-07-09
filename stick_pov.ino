@@ -702,13 +702,13 @@ void showPattern() {
       colorFade();
       break;
     case 8:
-      chase(4);
+      chase(7);
       break;
     case 9:
-      chase(4,true);
+      chase(7,true);
       break;
     case 10:
-      pong(8);
+      pong(10);
       break;
   }
 }
@@ -1007,7 +1007,7 @@ void chase(uint8_t groupSize, bool centerOrigin) {
   // If pattern direction is reversed, initialize iterator to last pixel index
   if (patternChanged && (patDirection == 1)) {
     patternChanged = false;
-    pat_i_0 = numPixels - 1;
+    pat_i_0 = numPixels;
   }
 
   for (int c=0; c < colorIterations; c++) {
@@ -1056,13 +1056,16 @@ void chase(uint8_t groupSize, bool centerOrigin) {
     }
     // Serial.println("");
   }
-  delay(20); // TODO: Tune this number
+
+  if (!isPOVColor && !isPOV3Color) {
+    delay(10);
+  }
 
   // Increment offset iterator and wraparound
   if (patDirection == 0) {
-    pat_i_0 = (pat_i_0 < numPixels) ? (pat_i_0 + 1) : 0;
+    pat_i_0 = (pat_i_0 <= numPixels) ? (pat_i_0 + 1) : 0;
   } else {
-    pat_i_0 = (pat_i_0 >= 0) ? (pat_i_0 - 1) : (numPixels -1);
+    pat_i_0 = (pat_i_0 >= 0) ? (pat_i_0 - 1) : (numPixels);
   }
 }
 
