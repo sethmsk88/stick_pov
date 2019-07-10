@@ -9,7 +9,9 @@
 #include "RemoteControlRoku.cpp"
 
 #define DATA_PIN 11
-#define IR_PIN 5
+#define BTN_1_PIN 3
+#define BTN_2_PIN 5
+#define BTN_3_PIN 9
 #define MAX_TIME_VALUE 0xFFFFFFFF
 
 // Function prototypes
@@ -45,7 +47,7 @@ const uint32_t COLORS[] = {
 const uint8_t COLORS_POV[][2] = {{0,8},{0,2},{8,2},{0,4},{6,7},{8,7},{4,6}}; // combinations of color indexes for POV
 const uint8_t COLORS_POV3[][3] = {{0,8,2}};
 
-uint8_t defaultBrightness = 80;//105; // Default is set to 50% of the brightness range
+uint8_t defaultBrightness = 25;//105; // Default is set to 50% of the brightness range
 
 // IMPORTANT NOTE: numLEDs value must also be changed in the applySavedSettings() function if a change to the LED count is made
 uint8_t numLEDs = 53; // 8 for test device, 53 for stick
@@ -85,6 +87,8 @@ Adafruit_NeoPixel strip;
 //void types(int32_t var) {Serial.println("Type is int32_t");}
 //void types(uint32_t var) {Serial.println("Type is uint32_t");}
 
+uint16_t activeButtonPin = 0;
+
 void setup() {
   Serial.begin(9600); // Connect with Serial monitor for testing purposes
   // Serial.println("Serial Monitor Ready");
@@ -96,7 +100,12 @@ void setup() {
   // applySavedSettings();
   strip = Adafruit_NeoPixel(numLEDs, DATA_PIN, NEO_GRB + NEO_KHZ800);
 
-  getFavorite(0); // Set stick to HOME pattern
+  // getFavorite(0); // Set stick to HOME pattern
+
+  // Initialize buttons
+  pinMode(BTN_1_PIN, INPUT_PULLUP);
+  pinMode(BTN_2_PIN, INPUT_PULLUP);
+  pinMode(BTN_3_PIN, INPUT_PULLUP);
 
   strip.begin();
   strip.setBrightness(defaultBrightness);
@@ -416,8 +425,8 @@ void nextPattern() {
     selectedPatternIdx = 0;
   }
   resetIndexesFlags();
-  changeBrightness(0); // Changing brightness by 0 so that we can make sure the brightness is safe for the new pattern
-  saveBrightness(); // save stick brightness if it has changed
+  // changeBrightness(0); // Changing brightness by 0 so that we can make sure the brightness is safe for the new pattern
+  // saveBrightness(); // save stick brightness if it has changed
 
   // Serial.println("selectedPatternIdx = " + (String)selectedPatternIdx); // DEBUG
 }
@@ -429,8 +438,8 @@ void prevPattern() {
     selectedPatternIdx = numPatterns - 1;
   }
   resetIndexesFlags();
-  changeBrightness(0); // Changing brightness by 0 so that we can make sure the brightness is safe for the new pattern
-  saveBrightness(); // save stick brightness if it has changed
+  // changeBrightness(0); // Changing brightness by 0 so that we can make sure the brightness is safe for the new pattern
+  // saveBrightness(); // save stick brightness if it has changed
 }
 
 // Check to see if the proposed brightness setting is safe for the color
@@ -1432,9 +1441,38 @@ void resetIndexesFlags() {
   }
 }
 
+void checkButtonPressNew() {
+  // If no button is currently pressed
+  if (activeButtonPin == 0) {
+    if (digitalRead(BTN_1_PIN) == LOW) {
+      activeButtonPin = BTN_1_PIN;
+      nextPattern();
+
+      Serial.println("Btn 1 pressed");
+    } else if (digitalRead(BTN_2_PIN) == LOW) {
+      activeButtonPin = BTN_2_PIN;
+      nextPattern();
+
+      Serial.println("Btn 2 pressed");
+    } else if (digitalRead(BTN_3_PIN) == LOW) {
+      activeButtonPin = BTN_3_PIN;
+      prevPattern();
+
+      Serial.println("Btn 3 pressed");
+    }
+  } else {
+    // Clear the active button state if it is no longer pressed
+    if (digitalRead(activeButtonPin) == HIGH) {
+      activeButtonPin = 0;
+    }
+  }
+}
+
 void loop() {  
   
   showPattern();
+
+  checkButtonPressNew();
 
 
   // checkButtonPress();
