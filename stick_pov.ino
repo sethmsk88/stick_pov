@@ -45,7 +45,7 @@ const uint32_t COLORS[] = {
 const uint8_t COLORS_POV[][2] = {{0,8},{0,2},{8,2},{0,4},{6,7},{8,7},{4,6}}; // combinations of color indexes for POV
 const uint8_t COLORS_POV3[][3] = {{0,8,2}};
 
-uint8_t defaultBrightness = 160;//105; // Default is set to 50% of the brightness range
+uint8_t defaultBrightness = 80;//105; // Default is set to 50% of the brightness range
 
 // IMPORTANT NOTE: numLEDs value must also be changed in the applySavedSettings() function if a change to the LED count is made
 uint8_t numLEDs = 53; // 8 for test device, 53 for stick
@@ -77,8 +77,8 @@ unsigned long buttonHoldStartTime = 0;
 Adafruit_NeoPixel strip;
 
 // Create a receiver object to listen on pin 2
-IRrecv myReceiver(IR_PIN);
-decode_results IRresults;
+// IRrecv myReceiver(IR_PIN);
+// decode_results IRresults;
 
 // Using polymorphism to find variable types
 //void types(uint16_t var) {Serial.println("Type is uint16_t");}
@@ -91,9 +91,9 @@ void setup() {
 
   // initEEPROM(); // ONLY RUN THIS ONCE - Usually Leave This Commented Out
 
-  myReceiver.enableIRIn(); // start the receiver
+  // myReceiver.enableIRIn(); // start the receiver
 
-  applySavedSettings();
+  // applySavedSettings();
   strip = Adafruit_NeoPixel(numLEDs, DATA_PIN, NEO_GRB + NEO_KHZ800);
 
   getFavorite(0); // Set stick to HOME pattern
@@ -242,6 +242,7 @@ void saveBrightness() {
   EEPROM.update(BRIGHTNESS_SAVED_ADDR, strip.getBrightness());
 }
 
+/*
 void checkButtonPress() { 
   uint16_t IRVal;
   uint16_t buttonActionVal;
@@ -406,6 +407,7 @@ void checkButtonPress() {
     // Serial.println(F("]"));
   }
 }
+*/
 
 void nextPattern() {
   if (selectedPatternIdx < numPatterns - 1) {
@@ -647,9 +649,9 @@ void showColumn() {
     strip.setPixelColor(i, patternColumn[i]);
   }
 
-  if (myReceiver.isIdle()) {
+  // if (myReceiver.isIdle()) {
     strip.show();
-  }
+  // }
 
 //  debugPatternColumn();
   
@@ -1433,7 +1435,9 @@ void resetIndexesFlags() {
 void loop() {  
   
   showPattern();
-  checkButtonPress();
+
+
+  // checkButtonPress();
   
   // Some example procedures showing how to display to the pixels:
   /*
