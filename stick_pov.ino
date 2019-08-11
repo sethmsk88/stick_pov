@@ -69,6 +69,8 @@ const int POVSpeedDelayMax = 50;
 uint16_t lastButtonPress = 0;
 uint16_t pendingButtonPress = 0; // IR value for button press
 unsigned long buttonPressStartTime = 0;
+uint16_t longButtonPressTime = 1000; // 1 seconds
+boolean longButtonPressActionPerformed = false;
 unsigned long noIRSignalDelay = 150; // if there are no IR signals for this amount of time, then we can say there are no active IR signals
 int patDirection = 0;
 boolean patternReverse = false;
@@ -1441,29 +1443,57 @@ void resetIndexesFlags() {
   }
 }
 
-void checkButtonPressNew() {
+
+
+void checkButtonPressNew() {  
   // If no button is currently pressed
   if (activeButtonPin == 0) {
     if (digitalRead(BTN_1_PIN) == LOW) {
       activeButtonPin = BTN_1_PIN;
+      buttonPressStartTime = millis();
       nextPattern();
 
       Serial.println("Btn 1 pressed");
     } else if (digitalRead(BTN_2_PIN) == LOW) {
       activeButtonPin = BTN_2_PIN;
+      buttonPressStartTime = millis();
       nextPattern();
 
       Serial.println("Btn 2 pressed");
     } else if (digitalRead(BTN_3_PIN) == LOW) {
       activeButtonPin = BTN_3_PIN;
+      buttonPressStartTime = millis();
       prevPattern();
 
       Serial.println("Btn 3 pressed");
     }
   } else {
+
+    // Check for long button press
+    // If long button press action has not been performed
+    if (!longButtonPressActionPerformed) {
+
+      // If button press is long enough to be a long press
+      if (millis() - buttonPressStartTime >= longButtonPressTime) {
+        longButtonPressActionPerformed = true;
+        Serial.println("Long button press");
+      }
+    }
+
     // Clear the active button state if it is no longer pressed
     if (digitalRead(activeButtonPin) == HIGH) {
+
+      // Debugging output
+      if (activeButtonPin == BTN_1_PIN) {
+        Serial.println("Btn 1 released");
+      } else if (activeButtonPin == BTN_2_PIN) {
+        Serial.println("Btn 2 released");
+      } else if (activeButtonPin == BTN_3_PIN) {
+        Serial.println("Btn 3 released");
+      }
+
       activeButtonPin = 0;
+      longButtonPressActionPerformed = false;
     }
   }
 }
