@@ -90,6 +90,8 @@ Adafruit_NeoPixel strip;
 //void types(uint32_t var) {Serial.println("Type is uint32_t");}
 
 uint16_t activeButtonPin = 0;
+uint8_t activeBtnsVal = 0;
+uint8_t prevBtnsVal = 0;
 
 void setup() {
   Serial.begin(9600); // Connect with Serial monitor for testing purposes
@@ -419,6 +421,26 @@ void checkButtonPress() {
   }
 }
 */
+
+/**
+ * Change the current pattern by modifying the selected pattern index
+ * @param difference - the number to add to the pattern index to change it (e.g. -1 or 1)
+ **/
+void changePattern(int difference) {
+  Serial.print(F("patIdx: "));
+  Serial.println(selectedPatternIdx);
+  
+  selectedPatternIdx += difference;
+
+  Serial.print(F("patIdx: "));
+  Serial.println(selectedPatternIdx);
+
+  if (selectedPatternIdx > numPatterns - 1) {
+    selectedPatternIdx = 0;
+  } else if (selectedPatternIdx < 0) {
+    selectedPatternIdx = numPatterns - 1;
+  }
+}
 
 void nextPattern() {
   if (selectedPatternIdx < numPatterns - 1) {
@@ -1443,59 +1465,126 @@ void resetIndexesFlags() {
   }
 }
 
+/**
+ * Get the current state of a button
+ * @param btnPin
+ * @return true if button is pressed, otherwise false
+ **/
+bool getButtonState(uint16_t btnPin) {
+  return digitalRead(btnPin) == LOW ? true : false;
+}
 
+/**
+ * Perform the action for a single or multi-button press
+ * @param btnsVal - An 8-bit value indicating which button or combination of buttons are pressed
+ * @param longPress - A boolean value indicating whether it is a short press or long press. Default is false, for short press
+ * Example of btnsVal: Pressing btn2 and btn3 = 110(base2) = 6(base10))
+ **/
+void btnAction(uint8_t btnsVal, bool longPress = false) {
+  uint8_t brightnessDiff = 5;
+  
+  if (longPress) Serial.print("Long ");
+  Serial.print("Press ");
+
+  switch (btnsVal) {
+    // Button 1
+    case 1:
+      changePattern(1);
+      Serial.println("1");
+      break;
+
+    // Button 2
+    case 2:
+      Serial.println("2");
+      break;
+
+    // Buttons 1, 2
+    case 3:
+      if (longPress) changeBrightness(brightnessDiff);
+      Serial.println("1 2");
+      break;
+
+
+    // Button 3
+    case 4:
+      changePattern(-1);
+      Serial.println("3");
+      break;
+
+    // Buttons 1, 3
+    case 5:
+      Serial.println("1 3");
+      break;
+      
+    // Buttons 2, 3
+    case 6:
+      if (longPress) changeBrightness(-brightnessDiff);
+      Serial.println("2 3");
+      break;
+
+    // Buttons 1, 2, 3
+    case 7:
+      Serial.println("1 2 3");
+      break;    
+  }
+}
 
 void checkButtonPressNew() {  
-  // If no button is currently pressed
-  if (activeButtonPin == 0) {
-    if (digitalRead(BTN_1_PIN) == LOW) {
-      activeButtonPin = BTN_1_PIN;
-      buttonPressStartTime = millis();
-      nextPattern();
+  // Get button states
+  bool btn1 = getButtonState(BTN_1_PIN);
+  bool btn2 = getButtonState(BTN_2_PIN);
+  bool btn3 = getButtonState(BTN_3_PIN);
+  uint8_t currentBtnsVal = 0;
+  bool btnStateChanged = false;
+  bool btnReleased = false;
 
-      Serial.println("Btn 1 pressed");
-    } else if (digitalRead(BTN_2_PIN) == LOW) {
-      activeButtonPin = BTN_2_PIN;
-      buttonPressStartTime = millis();
-      nextPattern();
+  // Check to see if a button state has changed
+  if (btn1) currentBtnsVal += 1;
+  if (btn2) currentBtnsVal += 2;
+  if (btn3) currentBtnsVal += 4;
+  if (currentBtnsVal != prevBtnsVal) {
+    btnStateChanged = true;
 
-      Serial.println("Btn 2 pressed");
-    } else if (digitalRead(BTN_3_PIN) == LOW) {
-      activeButtonPin = BTN_3_PIN;
-      buttonPressStartTime = millis();
-      prevPattern();
+    // Use these print statements when figuring out multi-button short presses
+    // Serial.print(prevBtnsVal);
+    // Serial.print(" - ");
+    // Serial.println(currentBtnsVal);
+  }
 
-      Serial.println("Btn 3 pressed");
+  if (btnStateChanged) {
+    // if at least one button is pressed, restart the timer
+    if (currentBtnsVal > 0) {
+      buttonPressStartTime = millis();
     }
-  } else {
-
-    // Check for long button press
-    // If long button press action has not been performed
-    if (!longButtonPressActionPerformed) {
-
-      // If button press is long enough to be a long press
-      if (millis() - buttonPressStartTime >= longButtonPressTime) {
-        longButtonPressActionPerformed = true;
-        Serial.println("Long button press");
-      }
-    }
-
-    // Clear the active button state if it is no longer pressed
-    if (digitalRead(activeButtonPin) == HIGH) {
-
-      // Debugging output
-      if (activeButtonPin == BTN_1_PIN) {
-        Serial.println("Btn 1 released");
-      } else if (activeButtonPin == BTN_2_PIN) {
-        Serial.println("Btn 2 released");
-      } else if (activeButtonPin == BTN_3_PIN) {
-        Serial.println("Btn 3 released");
-      }
-
-      activeButtonPin = 0;
-      longButtonPressActionPerformed = false;
+    // else, a button was released
+    else {
+      btnReleased = true;
     }
   }
+  // if the button state did NOT change, and there was a button pressed in the previous cycle
+  else if (prevBtnsVal > 0) {
+    // Check for long press
+    // If long button press action has not been performed, and it is long enough to be a long press
+    if (!longButtonPressActionPerformed && (millis() - buttonPressStartTime >= longButtonPressTime) ) {
+      longButtonPressActionPerformed = true;
+      btnAction(prevBtnsVal, true);
+    }
+  }
+
+  // when a button is released
+  if (btnReleased) {
+    // If long press action was not performed, perform button press action
+    // Long press actions are performed before the buttons are released, so they should not be repeated here
+    if (!longButtonPressActionPerformed) {
+      btnAction(prevBtnsVal);
+    }
+
+    // reset flag indicating that a long button press action has been performed
+    longButtonPressActionPerformed = false;
+  }
+
+  // update the previous buttons value
+  prevBtnsVal = currentBtnsVal;
 }
 
 void loop() {  
