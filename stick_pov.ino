@@ -249,6 +249,9 @@ int getFavoriteAddr(int fav_i, int attr_i) {
     case 4:
       return FAV_4_ADDR + attr_i;
       break;
+    default:
+      // Return HOME mode if invalid favorite mode was requested
+      return FAV_0_ADDR + attr_i;
   }
 }
 
@@ -1507,7 +1510,8 @@ void btnAction(uint8_t btnsVal, bool longPress = false) {
     // Buttons 1, 2
     case 3:
       Serial.println("1 2");
-      // Delay the long press action using modulus on the cycle counter
+      // Slow down the long press action using modulus on the cycle counter
+      actionInterval = 5;
       if (longPress && (cycleCounter % actionInterval == 0)) {
         changeBrightness(brightnessDiff);
       }
@@ -1527,6 +1531,7 @@ void btnAction(uint8_t btnsVal, bool longPress = false) {
     // Buttons 2, 3
     case 6:
       Serial.println("2 3");
+      actionInterval = 5;
       if (longPress && (cycleCounter % actionInterval == 0)) {
         changeBrightness(-brightnessDiff);
       }
@@ -1535,6 +1540,12 @@ void btnAction(uint8_t btnsVal, bool longPress = false) {
     // Buttons 1, 2, 3
     case 7:
       Serial.println("1 2 3");
+      // Save the current pattern as the HOME pattern
+      setFavorite(0);
+
+      // Set pattern to the OFF pattern
+      selectedPatternIdx = -1;
+      
       break;    
   }
 }
