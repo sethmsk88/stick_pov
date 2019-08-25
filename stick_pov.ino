@@ -75,6 +75,7 @@ unsigned long noIRSignalDelay = 150; // if there are no IR signals for this amou
 int patDirection = 0;
 boolean patternReverse = false;
 uint8_t patternStartingBrightness = 0; // used for patterns that alter brightness (must init to 0)
+uint8_t cycleCounter = 0;
 
 unsigned long buttonHoldStartTime = 0;
 
@@ -427,19 +428,20 @@ void checkButtonPress() {
  * @param difference - the number to add to the pattern index to change it (e.g. -1 or 1)
  **/
 void changePattern(int difference) {
-  Serial.print(F("patIdx: "));
+  // TODO: There is a bug when wrapping from lowest index to highest. The pattern is just black
+  Serial.print(F("patIdx before: "));
   Serial.println(selectedPatternIdx);
   
   selectedPatternIdx += difference;
-
-  Serial.print(F("patIdx: "));
-  Serial.println(selectedPatternIdx);
 
   if (selectedPatternIdx > numPatterns - 1) {
     selectedPatternIdx = 0;
   } else if (selectedPatternIdx < 0) {
     selectedPatternIdx = numPatterns - 1;
   }
+
+  Serial.print(F("patIdx after: "));
+  Serial.println(selectedPatternIdx);
 }
 
 void nextPattern() {
@@ -1482,6 +1484,10 @@ bool getButtonState(uint16_t btnPin) {
  **/
 void btnAction(uint8_t btnsVal, bool longPress = false) {
   uint8_t brightnessDiff = 5;
+
+  // Action Interval is the interval at which actions should be performed. If the interval is 1,
+  // actions will be performed every cycle. If the interval is 5, actions will be performed every 5 cycles.
+  uint8_t actionInterval = 1; // this value MUST be greater than 0
   
   if (longPress) Serial.print("Long ");
   Serial.print("Press ");
@@ -1489,8 +1495,8 @@ void btnAction(uint8_t btnsVal, bool longPress = false) {
   switch (btnsVal) {
     // Button 1
     case 1:
-      changePattern(1);
       Serial.println("1");
+      changePattern(1);
       break;
 
     // Button 2
@@ -1500,15 +1506,17 @@ void btnAction(uint8_t btnsVal, bool longPress = false) {
 
     // Buttons 1, 2
     case 3:
-      if (longPress) changeBrightness(brightnessDiff);
       Serial.println("1 2");
+      // Delay the long press action using modulus on the cycle counter
+      if (longPress && (cycleCounter % actionInterval == 0)) {
+        changeBrightness(brightnessDiff);
+      }
       break;
-
 
     // Button 3
     case 4:
-      changePattern(-1);
       Serial.println("3");
+      changePattern(-1); 
       break;
 
     // Buttons 1, 3
@@ -1518,8 +1526,10 @@ void btnAction(uint8_t btnsVal, bool longPress = false) {
       
     // Buttons 2, 3
     case 6:
-      if (longPress) changeBrightness(-brightnessDiff);
       Serial.println("2 3");
+      if (longPress && (cycleCounter % actionInterval == 0)) {
+        changeBrightness(-brightnessDiff);
+      }
       break;
 
     // Buttons 1, 2, 3
@@ -1529,6 +1539,7 @@ void btnAction(uint8_t btnsVal, bool longPress = false) {
   }
 }
 
+// Check for button input
 void checkButtonPressNew() {  
   // Get button states
   bool btn1 = getButtonState(BTN_1_PIN);
@@ -1564,18 +1575,19 @@ void checkButtonPressNew() {
   // if the button state did NOT change, and there was a button pressed in the previous cycle
   else if (prevBtnsVal > 0) {
     // Check for long press
-    // If long button press action has not been performed, and it is long enough to be a long press
-    if (!longButtonPressActionPerformed && (millis() - buttonPressStartTime >= longButtonPressTime) ) {
-      longButtonPressActionPerformed = true;
+    if (millis() - buttonPressStartTime >= longButtonPressTime) {
+      // perform long button press action
       btnAction(prevBtnsVal, true);
+      longButtonPressActionPerformed = true;
     }
   }
 
-  // when a button is released
+  // when buttons are released
   if (btnReleased) {
     // If long press action was not performed, perform button press action
     // Long press actions are performed before the buttons are released, so they should not be repeated here
     if (!longButtonPressActionPerformed) {
+      // perform button press action
       btnAction(prevBtnsVal);
     }
 
@@ -1592,6 +1604,8 @@ void loop() {
   showPattern();
 
   checkButtonPressNew();
+
+  cycleCounter++;
 
 
   // checkButtonPress();
