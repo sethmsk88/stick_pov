@@ -9,7 +9,9 @@
 #include "RemoteControlRoku.cpp"
 
 #define DATA_PIN 11
-#define IR_PIN 5
+#define BTN_1_PIN 3
+#define BTN_2_PIN 5
+#define BTN_3_PIN 9
 #define MAX_TIME_VALUE 0xFFFFFFFF
 
 // Function prototypes
@@ -45,7 +47,7 @@ const uint32_t COLORS[] = {
 const uint8_t COLORS_POV[][2] = {{0,8},{0,2},{8,2},{0,4},{6,7},{8,7},{4,6}}; // combinations of color indexes for POV
 const uint8_t COLORS_POV3[][3] = {{0,8,2}};
 
-uint8_t defaultBrightness = 160;//105; // Default is set to 50% of the brightness range
+uint8_t defaultBrightness = 25;//105; // Default is set to 50% of the brightness range
 
 // IMPORTANT NOTE: numLEDs value must also be changed in the applySavedSettings() function if a change to the LED count is made
 uint8_t numLEDs = 53; // 8 for test device, 53 for stick
@@ -67,23 +69,30 @@ const int POVSpeedDelayMax = 50;
 uint16_t lastButtonPress = 0;
 uint16_t pendingButtonPress = 0; // IR value for button press
 unsigned long buttonPressStartTime = 0;
+uint16_t longButtonPressTime = 1000; // 1 seconds
+boolean longButtonPressActionPerformed = false;
 unsigned long noIRSignalDelay = 150; // if there are no IR signals for this amount of time, then we can say there are no active IR signals
 int patDirection = 0;
 boolean patternReverse = false;
 uint8_t patternStartingBrightness = 0; // used for patterns that alter brightness (must init to 0)
+uint8_t cycleCounter = 0;
 
 unsigned long buttonHoldStartTime = 0;
 
 Adafruit_NeoPixel strip;
 
 // Create a receiver object to listen on pin 2
-IRrecv myReceiver(IR_PIN);
-decode_results IRresults;
+// IRrecv myReceiver(IR_PIN);
+// decode_results IRresults;
 
 // Using polymorphism to find variable types
 //void types(uint16_t var) {Serial.println("Type is uint16_t");}
 //void types(int32_t var) {Serial.println("Type is int32_t");}
 //void types(uint32_t var) {Serial.println("Type is uint32_t");}
+
+uint16_t activeButtonPin = 0;
+uint8_t activeBtnsVal = 0;
+uint8_t prevBtnsVal = 0;
 
 void setup() {
   Serial.begin(9600); // Connect with Serial monitor for testing purposes
@@ -91,12 +100,17 @@ void setup() {
 
   // initEEPROM(); // ONLY RUN THIS ONCE - Usually Leave This Commented Out
 
-  myReceiver.enableIRIn(); // start the receiver
+  // myReceiver.enableIRIn(); // start the receiver
 
-  applySavedSettings();
+  // applySavedSettings();
   strip = Adafruit_NeoPixel(numLEDs, DATA_PIN, NEO_GRB + NEO_KHZ800);
 
-  getFavorite(0); // Set stick to HOME pattern
+  // getFavorite(0); // Set stick to HOME pattern
+
+  // Initialize buttons
+  pinMode(BTN_1_PIN, INPUT_PULLUP);
+  pinMode(BTN_2_PIN, INPUT_PULLUP);
+  pinMode(BTN_3_PIN, INPUT_PULLUP);
 
   strip.begin();
   strip.setBrightness(defaultBrightness);
@@ -235,6 +249,9 @@ int getFavoriteAddr(int fav_i, int attr_i) {
     case 4:
       return FAV_4_ADDR + attr_i;
       break;
+    default:
+      // Return HOME mode if invalid favorite mode was requested
+      return FAV_0_ADDR + attr_i;
   }
 }
 
@@ -242,6 +259,7 @@ void saveBrightness() {
   EEPROM.update(BRIGHTNESS_SAVED_ADDR, strip.getBrightness());
 }
 
+/*
 void checkButtonPress() { 
   uint16_t IRVal;
   uint16_t buttonActionVal;
@@ -406,6 +424,28 @@ void checkButtonPress() {
     // Serial.println(F("]"));
   }
 }
+*/
+
+/**
+ * Change the current pattern by modifying the selected pattern index
+ * @param difference - the number to add to the pattern index to change it (e.g. -1 or 1)
+ **/
+void changePattern(int difference) {
+  // TODO: There is a bug when wrapping from lowest index to highest. The pattern is just black
+  Serial.print(F("patIdx before: "));
+  Serial.println(selectedPatternIdx);
+  
+  selectedPatternIdx += difference;
+
+  if (selectedPatternIdx > numPatterns - 1) {
+    selectedPatternIdx = 0;
+  } else if (selectedPatternIdx < 0) {
+    selectedPatternIdx = numPatterns - 1;
+  }
+
+  Serial.print(F("patIdx after: "));
+  Serial.println(selectedPatternIdx);
+}
 
 void nextPattern() {
   if (selectedPatternIdx < numPatterns - 1) {
@@ -414,8 +454,8 @@ void nextPattern() {
     selectedPatternIdx = 0;
   }
   resetIndexesFlags();
-  changeBrightness(0); // Changing brightness by 0 so that we can make sure the brightness is safe for the new pattern
-  saveBrightness(); // save stick brightness if it has changed
+  // changeBrightness(0); // Changing brightness by 0 so that we can make sure the brightness is safe for the new pattern
+  // saveBrightness(); // save stick brightness if it has changed
 
   // Serial.println("selectedPatternIdx = " + (String)selectedPatternIdx); // DEBUG
 }
@@ -427,8 +467,8 @@ void prevPattern() {
     selectedPatternIdx = numPatterns - 1;
   }
   resetIndexesFlags();
-  changeBrightness(0); // Changing brightness by 0 so that we can make sure the brightness is safe for the new pattern
-  saveBrightness(); // save stick brightness if it has changed
+  // changeBrightness(0); // Changing brightness by 0 so that we can make sure the brightness is safe for the new pattern
+  // saveBrightness(); // save stick brightness if it has changed
 }
 
 // Check to see if the proposed brightness setting is safe for the color
@@ -647,9 +687,9 @@ void showColumn() {
     strip.setPixelColor(i, patternColumn[i]);
   }
 
-  if (myReceiver.isIdle()) {
+  // if (myReceiver.isIdle()) {
     strip.show();
-  }
+  // }
 
 //  debugPatternColumn();
   
@@ -1430,10 +1470,156 @@ void resetIndexesFlags() {
   }
 }
 
+/**
+ * Get the current state of a button
+ * @param btnPin
+ * @return true if button is pressed, otherwise false
+ **/
+bool getButtonState(uint16_t btnPin) {
+  return digitalRead(btnPin) == LOW ? true : false;
+}
+
+/**
+ * Perform the action for a single or multi-button press
+ * @param btnsVal - An 8-bit value indicating which button or combination of buttons are pressed
+ * @param longPress - A boolean value indicating whether it is a short press or long press. Default is false, for short press
+ * Example of btnsVal: Pressing btn2 and btn3 = 110(base2) = 6(base10))
+ **/
+void btnAction(uint8_t btnsVal, bool longPress = false) {
+  uint8_t brightnessDiff = 5;
+
+  // Action Interval is the interval at which actions should be performed. If the interval is 1,
+  // actions will be performed every cycle. If the interval is 5, actions will be performed every 5 cycles.
+  uint8_t actionInterval = 1; // this value MUST be greater than 0
+  
+  if (longPress) Serial.print("Long ");
+  Serial.print("Press ");
+
+  switch (btnsVal) {
+    // Button 1
+    case 1:
+      Serial.println("1");
+      changePattern(1);
+      break;
+
+    // Button 2
+    case 2:
+      Serial.println("2");
+      break;
+
+    // Buttons 1, 2
+    case 3:
+      Serial.println("1 2");
+      // Slow down the long press action using modulus on the cycle counter
+      actionInterval = 5;
+      if (longPress && (cycleCounter % actionInterval == 0)) {
+        changeBrightness(brightnessDiff);
+      }
+      break;
+
+    // Button 3
+    case 4:
+      Serial.println("3");
+      changePattern(-1); 
+      break;
+
+    // Buttons 1, 3
+    case 5:
+      Serial.println("1 3");
+      break;
+      
+    // Buttons 2, 3
+    case 6:
+      Serial.println("2 3");
+      actionInterval = 5;
+      if (longPress && (cycleCounter % actionInterval == 0)) {
+        changeBrightness(-brightnessDiff);
+      }
+      break;
+
+    // Buttons 1, 2, 3
+    case 7:
+      Serial.println("1 2 3");
+      // Save the current pattern as the HOME pattern
+      setFavorite(0);
+
+      // Set pattern to the OFF pattern
+      selectedPatternIdx = -1;
+      
+      break;    
+  }
+}
+
+// Check for button input
+void checkButtonPressNew() {  
+  // Get button states
+  bool btn1 = getButtonState(BTN_1_PIN);
+  bool btn2 = getButtonState(BTN_2_PIN);
+  bool btn3 = getButtonState(BTN_3_PIN);
+  uint8_t currentBtnsVal = 0;
+  bool btnStateChanged = false;
+  bool btnReleased = false;
+
+  // Check to see if a button state has changed
+  if (btn1) currentBtnsVal += 1;
+  if (btn2) currentBtnsVal += 2;
+  if (btn3) currentBtnsVal += 4;
+  if (currentBtnsVal != prevBtnsVal) {
+    btnStateChanged = true;
+
+    // Use these print statements when figuring out multi-button short presses
+    // Serial.print(prevBtnsVal);
+    // Serial.print(" - ");
+    // Serial.println(currentBtnsVal);
+  }
+
+  if (btnStateChanged) {
+    // if at least one button is pressed, restart the timer
+    if (currentBtnsVal > 0) {
+      buttonPressStartTime = millis();
+    }
+    // else, a button was released
+    else {
+      btnReleased = true;
+    }
+  }
+  // if the button state did NOT change, and there was a button pressed in the previous cycle
+  else if (prevBtnsVal > 0) {
+    // Check for long press
+    if (millis() - buttonPressStartTime >= longButtonPressTime) {
+      // perform long button press action
+      btnAction(prevBtnsVal, true);
+      longButtonPressActionPerformed = true;
+    }
+  }
+
+  // when buttons are released
+  if (btnReleased) {
+    // If long press action was not performed, perform button press action
+    // Long press actions are performed before the buttons are released, so they should not be repeated here
+    if (!longButtonPressActionPerformed) {
+      // perform button press action
+      btnAction(prevBtnsVal);
+    }
+
+    // reset flag indicating that a long button press action has been performed
+    longButtonPressActionPerformed = false;
+  }
+
+  // update the previous buttons value
+  prevBtnsVal = currentBtnsVal;
+}
+
 void loop() {  
   
   showPattern();
-  checkButtonPress();
+
+  checkButtonPressNew();
+
+  cycleCounter++;
+
+
+  // checkButtonPress();
   
   // Some example procedures showing how to display to the pixels:
   /*
