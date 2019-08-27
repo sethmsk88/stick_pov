@@ -105,7 +105,7 @@ void setup() {
   // applySavedSettings();
   strip = Adafruit_NeoPixel(numLEDs, DATA_PIN, NEO_GRB + NEO_KHZ800);
 
-  // getFavorite(0); // Set stick to HOME pattern
+  getFavorite(0); // Set stick to HOME pattern
 
   // Initialize buttons
   pinMode(BTN_1_PIN, INPUT_PULLUP);
@@ -209,7 +209,7 @@ void setFavorite(uint8_t i) {
   EEPROM.update(patternColorIndex_addr, selectedPatternColorIdx);
   EEPROM.update(POVSpeedDelay_addr, POVSpeedDelay);
 
-  alertUser(COLORS[1], 2, 50, 200); // Flash stick green to alert a save
+  // alertUser(COLORS[1], 2, 50, 200); // Flash stick green to alert a save
 
   // Serial.println("Favorite " + (String)i + " saved:");
 }
@@ -432,8 +432,8 @@ void checkButtonPress() {
  **/
 void changePattern(int difference) {
   // TODO: There is a bug when wrapping from lowest index to highest. The pattern is just black
-  Serial.print(F("patIdx before: "));
-  Serial.println(selectedPatternIdx);
+  // Serial.print(F("patIdx before: "));
+  // Serial.println(selectedPatternIdx);
   
   selectedPatternIdx += difference;
 
@@ -443,7 +443,7 @@ void changePattern(int difference) {
     selectedPatternIdx = numPatterns - 1;
   }
 
-  Serial.print(F("patIdx after: "));
+  Serial.print(F("patIdx: "));
   Serial.println(selectedPatternIdx);
 }
 
@@ -546,8 +546,8 @@ void changeBrightness(int difference) {
 
   newBrightness = makeSafeBrightness(newBrightness, selectedPatternColorIdx, difference);
 
-  // Serial.print(F("Brightness: "));
-  // Serial.println((String)newBrightness);
+  Serial.print(F("Brightness: "));
+  Serial.println((String)newBrightness);
 
   strip.setBrightness((uint8_t)newBrightness);
   showColumn();
@@ -730,8 +730,9 @@ void showPattern() {
       stackingAnimation();
       break;
     case 4:
-      breatheAnimation();
-      break;
+      // Skipping this pattern until it is fixed
+      // breatheAnimation();
+      // break;
     case 5:
       twinkle();
       break;
@@ -798,6 +799,7 @@ void sixColorPOV() {
 
 // Color Wipe
 void colorWipe(uint8_t msDelay, int colorIdx) {
+  // TODO: after switching patterns several times, this pattern gets stuck at the beginning of its animation
   int numColors = getNumColors();
   int numPOVColors = getNumPOVColors();
   bool isPOVColor = isPOVColorIndex(selectedPatternColorIdx);
@@ -980,6 +982,7 @@ void rainbow() {
 
 // Group of pixels bounce off both ends of stick
 void pong(uint8_t groupSize) {
+  // TODO: Fix - this pattern starts black sometimes, and doesn't do anything. It is usually fixed by going to the next pattern, and then back to it.
   uint32_t color;
   int numPixels = strip.numPixels();
   int numColors = getNumColors();
@@ -1148,6 +1151,7 @@ void chaseRainbow(uint8_t groupSize) {
 
 // Stacking animation
 void stackingAnimation() {
+  // TODO: after switching patterns several times, this pattern gets stuck at the beginning of its animation
   int numColors = getNumColors();
   bool isPOVColor = isPOVColorIndex(selectedPatternColorIdx);
   int colorIterations = isPOVColor ? 2 : 1; // 2 colors for POV
@@ -1267,6 +1271,7 @@ void stackingAnimation() {
 
 // Breathe Animation
 void breatheAnimation() {
+  // TODO: Fix this pattern. It is causing the stick to get stuck sometimes, and also messing up the brightness when you go to another pattern
   // NOTE: In order to change the top-end brightness of this pattern, user
   // must switch to a different pattern, change the brightness, and then switch back.
 
@@ -1492,26 +1497,26 @@ void btnAction(uint8_t btnsVal, bool longPress = false) {
   // actions will be performed every cycle. If the interval is 5, actions will be performed every 5 cycles.
   uint8_t actionInterval = 1; // this value MUST be greater than 0
   
-  if (longPress) Serial.print("Long ");
-  Serial.print("Press ");
+  // if (longPress) Serial.print("Long ");
+  // Serial.print("Press ");
 
   switch (btnsVal) {
     // Button 1
     case 1:
-      Serial.println("1");
+      // Serial.println("1");
       changePattern(1);
       break;
 
     // Button 2
     case 2:
-      Serial.println("2");
+      Serial.println("Auto cycle mode ON/OFF");
       break;
 
     // Buttons 1, 2
     case 3:
-      Serial.println("1 2");
+      // Serial.println("1 2");
       // Slow down the long press action using modulus on the cycle counter
-      actionInterval = 5;
+      actionInterval = 25;
       if (longPress && (cycleCounter % actionInterval == 0)) {
         changeBrightness(brightnessDiff);
       }
@@ -1519,19 +1524,20 @@ void btnAction(uint8_t btnsVal, bool longPress = false) {
 
     // Button 3
     case 4:
-      Serial.println("3");
+      // Serial.println("3");
       changePattern(-1); 
       break;
 
     // Buttons 1, 3
     case 5:
-      Serial.println("1 3");
+      // Serial.println("1 3");
+      if (longPress) getFavorite(0); // Set to HOME pattern
       break;
       
     // Buttons 2, 3
     case 6:
-      Serial.println("2 3");
-      actionInterval = 5;
+      // Serial.println("2 3");
+      actionInterval = 25;
       if (longPress && (cycleCounter % actionInterval == 0)) {
         changeBrightness(-brightnessDiff);
       }
@@ -1539,7 +1545,7 @@ void btnAction(uint8_t btnsVal, bool longPress = false) {
 
     // Buttons 1, 2, 3
     case 7:
-      Serial.println("1 2 3");
+      // Serial.println("1 2 3");
       // Save the current pattern as the HOME pattern
       setFavorite(0);
 
