@@ -1,12 +1,12 @@
 #include <Adafruit_NeoPixel.h>
-#include <IRremote.h>
+// #include <IRremote.h>
 #ifdef __AVR__
   #include <avr/power.h>
 #endif
 //#include <MemoryFree.h>
 #include <EEPROM.h>
 
-#include "RemoteControlRoku.cpp"
+// #include "RemoteControlRoku.cpp"
 
 #define DATA_PIN 11
 #define BTN_1_PIN 3
@@ -15,7 +15,8 @@
 #define MAX_TIME_VALUE 0xFFFFFFFF
 
 // Function prototypes
-void colorWipe(uint8_t msDelay, int colorIdx = -1);
+void colorWipe(uint8_t msDelay);
+void solidColor();
 void chase(uint8_t groupSize, bool centerOrigin = false);
 
 // Each favorite saves two bytes worth of info, so each is allocated two addresses
@@ -76,6 +77,8 @@ int patDirection = 0;
 boolean patternReverse = false;
 uint8_t patternStartingBrightness = 0; // used for patterns that alter brightness (must init to 0)
 uint8_t cycleCounter = 0;
+bool autoCycle = false;
+uint32_t autoCycleTimerStart = 0;
 
 unsigned long buttonHoldStartTime = 0;
 
@@ -105,7 +108,7 @@ void setup() {
   // applySavedSettings();
   strip = Adafruit_NeoPixel(numLEDs, DATA_PIN, NEO_GRB + NEO_KHZ800);
 
-  // getFavorite(0); // Set stick to HOME pattern
+  getFavorite(0); // Set stick to HOME pattern
 
   // Initialize buttons
   pinMode(BTN_1_PIN, INPUT_PULLUP);
@@ -209,7 +212,7 @@ void setFavorite(uint8_t i) {
   EEPROM.update(patternColorIndex_addr, selectedPatternColorIdx);
   EEPROM.update(POVSpeedDelay_addr, POVSpeedDelay);
 
-  alertUser(COLORS[1], 2, 50, 200); // Flash stick green to alert a save
+  // alertUser(COLORS[1], 2, 50, 200); // Flash stick green to alert a save
 
   // Serial.println("Favorite " + (String)i + " saved:");
 }
@@ -432,8 +435,8 @@ void checkButtonPress() {
  **/
 void changePattern(int difference) {
   // TODO: There is a bug when wrapping from lowest index to highest. The pattern is just black
-  Serial.print(F("patIdx before: "));
-  Serial.println(selectedPatternIdx);
+  // Serial.print(F("patIdx before: "));
+  // Serial.println(selectedPatternIdx);
   
   selectedPatternIdx += difference;
 
@@ -443,10 +446,13 @@ void changePattern(int difference) {
     selectedPatternIdx = numPatterns - 1;
   }
 
-  Serial.print(F("patIdx after: "));
+  resetIndexesFlags();
+
+  Serial.print(F("patIdx: "));
   Serial.println(selectedPatternIdx);
 }
 
+/*
 void nextPattern() {
   if (selectedPatternIdx < numPatterns - 1) {
     selectedPatternIdx++;
@@ -470,6 +476,7 @@ void prevPattern() {
   // changeBrightness(0); // Changing brightness by 0 so that we can make sure the brightness is safe for the new pattern
   // saveBrightness(); // save stick brightness if it has changed
 }
+*/
 
 // Check to see if the proposed brightness setting is safe for the color
 // This prevents the board from crashing due to power overdraw
@@ -546,8 +553,8 @@ void changeBrightness(int difference) {
 
   newBrightness = makeSafeBrightness(newBrightness, selectedPatternColorIdx, difference);
 
-  // Serial.print(F("Brightness: "));
-  // Serial.println((String)newBrightness);
+  Serial.print(F("Brightness: "));
+  Serial.println((String)newBrightness);
 
   strip.setBrightness((uint8_t)newBrightness);
   showColumn();
@@ -730,8 +737,10 @@ void showPattern() {
       stackingAnimation();
       break;
     case 4:
-      breatheAnimation();
-      break;
+      // Skipping this pattern until it is fixed
+      // breatheAnimation();
+      solidColor();
+      // break;
     case 5:
       twinkle();
       break;
@@ -796,8 +805,41 @@ void sixColorPOV() {
   pat_i_0 = (pat_i_0 < numColors - 1) ? pat_i_0 + 1 : 0;
 }
 
+// Display a solid color
+void solidColor() {
+  int numColors = getNumColors();
+  int numPOVColors = getNumPOVColors();
+  bool isPOVColor = isPOVColorIndex(selectedPatternColorIdx);
+  bool isPOV3Color = isPOV3ColorIndex(selectedPatternColorIdx);
+  int colorIterations = getNumColorsInPOV(selectedPatternColorIdx);
+  uint32_t color;
+
+  for (int c=0; c < colorIterations; c++) {
+    // Get the color
+    if (isPOVColor) {
+      color = COLORS[ COLORS_POV[selectedPatternColorIdx - numColors][c] ];
+    } else if (isPOV3Color) {
+      color = COLORS[ COLORS_POV3[selectedPatternColorIdx - numColors - numPOVColors][c] ];
+    } else {
+      color = COLORS[selectedPatternColorIdx];
+    }
+
+    for (uint8_t i=0; i < strip.numPixels(); i++) {
+      patternColumn[i] = color;
+    }
+
+    // Insert POV delay if POV color
+    if (isPOVColor || isPOV3Color) {
+      delay(POVSpeedDelay);
+    }
+
+    showColumn();
+  }
+}
+
 // Color Wipe
-void colorWipe(uint8_t msDelay, int colorIdx) {
+void colorWipe(uint8_t msDelay) {
+  // TODO: after switching patterns several times, this pattern gets stuck at the beginning of its animation
   int numColors = getNumColors();
   int numPOVColors = getNumPOVColors();
   bool isPOVColor = isPOVColorIndex(selectedPatternColorIdx);
@@ -988,6 +1030,11 @@ void pong(uint8_t groupSize) {
   bool isPOV3Color = isPOV3ColorIndex(selectedPatternColorIdx);
   int colorIterations = getNumColorsInPOV(selectedPatternColorIdx);
 
+  // Serial.print(F("ColorIdx: "));
+  // Serial.println(selectedPatternColorIdx);
+  // Serial.print(F("pat_i_0: "));
+  // Serial.println(pat_i_0);
+
   for (int c=0; c < colorIterations; c++) {
     // Get the color
     if (isPOVColor) {
@@ -1148,6 +1195,7 @@ void chaseRainbow(uint8_t groupSize) {
 
 // Stacking animation
 void stackingAnimation() {
+  // TODO: after switching patterns several times, this pattern gets stuck at the beginning of its animation
   int numColors = getNumColors();
   bool isPOVColor = isPOVColorIndex(selectedPatternColorIdx);
   int colorIterations = isPOVColor ? 2 : 1; // 2 colors for POV
@@ -1267,6 +1315,7 @@ void stackingAnimation() {
 
 // Breathe Animation
 void breatheAnimation() {
+  // TODO: Fix this pattern. It is causing the stick to get stuck sometimes, and also messing up the brightness when you go to another pattern
   // NOTE: In order to change the top-end brightness of this pattern, user
   // must switch to a different pattern, change the brightness, and then switch back.
 
@@ -1492,26 +1541,26 @@ void btnAction(uint8_t btnsVal, bool longPress = false) {
   // actions will be performed every cycle. If the interval is 5, actions will be performed every 5 cycles.
   uint8_t actionInterval = 1; // this value MUST be greater than 0
   
-  if (longPress) Serial.print("Long ");
-  Serial.print("Press ");
+  // if (longPress) Serial.print("Long ");
+  // Serial.print("Press ");
 
   switch (btnsVal) {
     // Button 1
     case 1:
-      Serial.println("1");
+      // Serial.println("1");
       changePattern(1);
       break;
 
     // Button 2
     case 2:
-      Serial.println("2");
+      toggleAutoCycle();
       break;
 
     // Buttons 1, 2
     case 3:
-      Serial.println("1 2");
+      // Serial.println("1 2");
       // Slow down the long press action using modulus on the cycle counter
-      actionInterval = 5;
+      actionInterval = 25;
       if (longPress && (cycleCounter % actionInterval == 0)) {
         changeBrightness(brightnessDiff);
       }
@@ -1519,19 +1568,20 @@ void btnAction(uint8_t btnsVal, bool longPress = false) {
 
     // Button 3
     case 4:
-      Serial.println("3");
+      // Serial.println("3");
       changePattern(-1); 
       break;
 
     // Buttons 1, 3
     case 5:
-      Serial.println("1 3");
+      // Serial.println("1 3");
+      if (longPress) getFavorite(0); // Set to HOME pattern
       break;
       
     // Buttons 2, 3
     case 6:
-      Serial.println("2 3");
-      actionInterval = 5;
+      // Serial.println("2 3");
+      actionInterval = 25;
       if (longPress && (cycleCounter % actionInterval == 0)) {
         changeBrightness(-brightnessDiff);
       }
@@ -1539,7 +1589,7 @@ void btnAction(uint8_t btnsVal, bool longPress = false) {
 
     // Buttons 1, 2, 3
     case 7:
-      Serial.println("1 2 3");
+      // Serial.println("1 2 3");
       // Save the current pattern as the HOME pattern
       setFavorite(0);
 
@@ -1610,11 +1660,46 @@ void checkButtonPressNew() {
   prevBtnsVal = currentBtnsVal;
 }
 
-void loop() {  
+// Toggle auto cycle mode ON/OFF 
+void toggleAutoCycle() {
+  autoCycle = !autoCycle;
   
+  Serial.print(F("Auto:"));
+  if (autoCycle) {
+    autoCycleTimerStart = millis();
+    Serial.println(F("ON"));
+  } else {
+    Serial.println(F("OFF"));
+  }
+}
+
+// Check to see if the auto cycle time interval has elapsed
+// return true if time has elapsed, else return false
+bool autoCycleTimeHasElapsed() {
+  uint16_t autoCycleInterval = 3000; // 3 seconds
+
+  if (millis() - autoCycleTimerStart > autoCycleInterval) {
+    autoCycleTimerStart = millis();
+    return true;
+  } else {
+    return false;
+  }
+
+  return (millis() - autoCycleTimerStart) > autoCycleInterval ? true : false;
+}
+
+void loop() {
+  
+  // autoCycleTimerStart
+
   showPattern();
 
   checkButtonPressNew();
+
+  // If auto cycle mode is on, change to next pattern 
+  if (autoCycle && autoCycleTimeHasElapsed()) {
+    changePattern(1);
+  }
 
   cycleCounter++;
 
