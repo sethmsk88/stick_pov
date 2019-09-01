@@ -1,12 +1,8 @@
 #include <Adafruit_NeoPixel.h>
-// #include <IRremote.h>
 #ifdef __AVR__
   #include <avr/power.h>
 #endif
-//#include <MemoryFree.h>
 #include <EEPROM.h>
-
-// #include "RemoteControlRoku.cpp"
 
 #define DATA_PIN 11
 #define BTN_1_PIN 3
@@ -82,30 +78,18 @@ uint32_t autoCycleTimerStart = 0;
 
 unsigned long buttonHoldStartTime = 0;
 
-Adafruit_NeoPixel strip;
-
-// Create a receiver object to listen on pin 2
-// IRrecv myReceiver(IR_PIN);
-// decode_results IRresults;
-
-// Using polymorphism to find variable types
-//void types(uint16_t var) {Serial.println("Type is uint16_t");}
-//void types(int32_t var) {Serial.println("Type is int32_t");}
-//void types(uint32_t var) {Serial.println("Type is uint32_t");}
-
 uint16_t activeButtonPin = 0;
 uint8_t activeBtnsVal = 0;
 uint8_t prevBtnsVal = 0;
 
+Adafruit_NeoPixel strip;
+
 void setup() {
   Serial.begin(9600); // Connect with Serial monitor for testing purposes
-  // Serial.println("Serial Monitor Ready");
 
   // initEEPROM(); // ONLY RUN THIS ONCE - Usually Leave This Commented Out
-
-  // myReceiver.enableIRIn(); // start the receiver
-
   // applySavedSettings();
+  
   strip = Adafruit_NeoPixel(numLEDs, DATA_PIN, NEO_GRB + NEO_KHZ800);
 
   getFavorite(0); // Set stick to HOME pattern
@@ -119,19 +103,13 @@ void setup() {
   strip.setBrightness(defaultBrightness);
   strip.show();
 
-  randomSeed(analogRead(0));
+  randomSeed(analogRead(0)); // seed random number generator for functions that need it
 }
 
 // Change the number of LEDs on the strip
 void changeNumLEDs(int difference) {
-  // ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR 
-  // ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR 
-  // ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR ERROR 
   // TODO: There is a problem with this function. The method updateLength causes the stick to freeze
-  
   // TODO: if it's a negative difference, pulse the stick a solid color and delay briefly, since this action
-  // will be on a button hold
-  
   int minNumLEDs = 5; // setting min number of pixels to 5, because their is a weird bug below 5
   uint16_t currentNumLEDs = strip.numPixels();
   uint16_t newNumLEDs = currentNumLEDs + difference;
@@ -158,6 +136,7 @@ void initEEPROM() {
   }
 }
 
+// TODO - Implement the EEPROM re-initialization funtion before re-activating this
 void applySavedSettings() {
   int patternIndex_addr,
     speedDelay_addr,
@@ -213,7 +192,6 @@ void setFavorite(uint8_t i) {
   EEPROM.update(POVSpeedDelay_addr, POVSpeedDelay);
 
   // alertUser(COLORS[1], 2, 50, 200); // Flash stick green to alert a save
-
   // Serial.println("Favorite " + (String)i + " saved:");
 }
 
@@ -262,182 +240,11 @@ void saveBrightness() {
   EEPROM.update(BRIGHTNESS_SAVED_ADDR, strip.getBrightness());
 }
 
-/*
-void checkButtonPress() { 
-  uint16_t IRVal;
-  uint16_t buttonActionVal;
-  unsigned long currentTime = millis();
-  bool buttonAction = false; // whether or not to perform button action
-  bool buttonHold = false; // whether or not a button is being held down
-
-  // Serial.println((String)currentTime); // DEBUG
-
-  // Number of milliseconds that must pass after a button press without receiving a button hold code,
-  // before it is considered a button press instead of a button hold.
-  int buttonPressThreshold = 200;
-
-  // Number of milliseconds that the user must hold a button before the button hold action is performed
-  int buttonHoldThreshold = 1000;
-  
-  // IR signal received
-  if (myReceiver.decode(&IRresults)) {
-    IRVal = (uint16_t)IRresults.value;
-
-    // Serial.println("IR Received [" + RemoteControlRoku::getBtnDescription(IRVal) + "]"); // DEBUG
-    // Serial.println((String)IRVal);
-
-    if (RemoteControlRoku::isButtonPress(IRVal)) {
-      // Button presses must wait for a short amount of time (i.e. buttonPressThreshold) before action is performed. This is
-      // so we can check to see if the user is holding the button
-      lastButtonPress = IRVal;
-      pendingButtonPress = IRVal;
-      buttonPressStartTime = currentTime;
-
-    } else if (RemoteControlRoku::isButtonHold(IRVal)) {
-      // Serial.println("lastButtonPress = " + RemoteControlRoku::getBtnDescription(lastButtonPress)); // DEBUG
-      // if the lastButtonPress was NOT a button hold, set the buttonHoldStartTime
-      if (RemoteControlRoku::isButtonPress(lastButtonPress)) {
-        buttonHoldStartTime = buttonPressStartTime;
-      }
-      lastButtonPress = IRVal;
-
-      // if buttonHoldThreshold has passed, trigger button hold action
-      if (currentTime - buttonHoldStartTime >= buttonHoldThreshold) {
-        buttonHold = true;
-        buttonAction = true;
-      }
-    } else {
-      // Invalid IR value
-    }
-
-    myReceiver.enableIRIn();  // Restart receiver
-  }
-  else {
-    // No IR signal received
-
-    // BEGIN DEBUG
-    // if (RemoteControlRoku::isButtonPress(pendingButtonPress)) {
-      // Serial.println((String)currentTime + " - " + (String)buttonPressStartTime + " = " + (String)(currentTime - buttonPressStartTime));
-    // }
-    // END DEBUG
-
-    // If there is a pending button press, but a button hold code was received, reset the buttonPressStartTime value
-    if (RemoteControlRoku::isButtonPress(pendingButtonPress) && RemoteControlRoku::isButtonHold(lastButtonPress)) {
-        buttonPressStartTime = currentTime;
-    }
-
-    // if the last IR code was a button press, check to see if the threshold time has passed
-    if (RemoteControlRoku::isButtonPress(pendingButtonPress)
-      && (currentTime - buttonPressStartTime >= buttonPressThreshold)) {
-        buttonAction = true;
-    }
-  }  
-
-  // If a button action is ready to be performed (i.e. if the wait threshold has passed)
-  if (buttonAction) {
-    
-    // Use buttonHold to determine which stored button code to use for the action (e.g. the press, or the hold)
-    buttonActionVal = buttonHold ? lastButtonPress : pendingButtonPress;
-
-    switch(buttonActionVal) {
-      case RemoteControlRoku::BTN_UP:
-        nextPattern();
-        break;
-      case RemoteControlRoku::BTN_DOWN:
-        prevPattern();
-        break;
-      case RemoteControlRoku::BTN_LEFT:
-      case RemoteControlRoku::BTN_LEFT_HOLD:
-        changeColor(-1); // Change pattern to prev color
-        break;
-      case RemoteControlRoku::BTN_RIGHT:
-      case RemoteControlRoku::BTN_RIGHT_HOLD:
-        changeColor(1); // Change pattern to next color
-        break;
-      case RemoteControlRoku::BTN_POWER:
-        // Power button OFF turns all pixels off
-        // Power button ON set stick to HOME favorite mode
-        if (selectedPatternIdx > -1) {
-          selectedPatternIdx = -1;
-        } else {
-          getFavorite(0); // Set to HOME
-        }
-        break;
-      case RemoteControlRoku::BTN_ASTERISK:
-        changeNumLEDs(1);
-        break;
-      case RemoteControlRoku::BTN_ASTERISK_HOLD:
-        changeNumLEDs(-1);
-        break;
-      case RemoteControlRoku::BTN_HOME:
-        getFavorite(0);
-        break;
-      case RemoteControlRoku::BTN_HOME_HOLD:
-        setFavorite(0);
-        break;
-      case RemoteControlRoku::BTN_MEDIA_0:
-        getFavorite(1);
-        break;
-      case RemoteControlRoku::BTN_MEDIA_0_HOLD:
-        setFavorite(1);
-        break;
-      case RemoteControlRoku::BTN_MEDIA_1:
-        getFavorite(2);
-        break;
-      case RemoteControlRoku::BTN_MEDIA_1_HOLD:
-        setFavorite(2);
-        break;
-      case RemoteControlRoku::BTN_MEDIA_2:
-        getFavorite(3);
-        break;
-      case RemoteControlRoku::BTN_MEDIA_2_HOLD:
-        setFavorite(3);
-        break;
-      case RemoteControlRoku::BTN_MEDIA_3:
-        getFavorite(4);
-        break;
-      case RemoteControlRoku::BTN_MEDIA_3_HOLD:
-        setFavorite(4);
-        break;
-      case RemoteControlRoku::BTN_VOL_UP:
-      case RemoteControlRoku::BTN_VOL_UP_HOLD:
-        changeBrightness(5);
-        break;
-      case RemoteControlRoku::BTN_VOL_DOWN:
-      case RemoteControlRoku::BTN_VOL_DOWN_HOLD:
-        changeBrightness(-5);
-        break;
-      case RemoteControlRoku::BTN_RETURN:
-        changeDirection();
-        break;
-      case RemoteControlRoku::BTN_FASTFORWARD:
-      case RemoteControlRoku::BTN_FASTFORWARD_HOLD:
-        changeSpeed(-1); // negative value speeds up animation
-        break;
-      case RemoteControlRoku::BTN_REWIND:
-      case RemoteControlRoku::BTN_REWIND_HOLD:
-        changeSpeed(1); // positive value slows down animation
-        break;
-    }
-
-    pendingButtonPress = 0; // clear value
-
-    // Serial.print(F("Button ["));
-    // Serial.print(RemoteControlRoku::getBtnDescription(buttonActionVal));
-    // Serial.println(F("]"));
-  }
-}
-*/
-
 /**
  * Change the current pattern by modifying the selected pattern index
  * @param difference - the number to add to the pattern index to change it (e.g. -1 or 1)
  **/
-void changePattern(int difference) {
-  // TODO: There is a bug when wrapping from lowest index to highest. The pattern is just black
-  // Serial.print(F("patIdx before: "));
-  // Serial.println(selectedPatternIdx);
-  
+void changePattern(int difference) {  
   selectedPatternIdx += difference;
 
   if (selectedPatternIdx > numPatterns - 1) {
@@ -452,36 +259,11 @@ void changePattern(int difference) {
   Serial.println(selectedPatternIdx);
 }
 
-/*
-void nextPattern() {
-  if (selectedPatternIdx < numPatterns - 1) {
-    selectedPatternIdx++;
-  } else {
-    selectedPatternIdx = 0;
-  }
-  resetIndexesFlags();
-  // changeBrightness(0); // Changing brightness by 0 so that we can make sure the brightness is safe for the new pattern
-  // saveBrightness(); // save stick brightness if it has changed
-
-  // Serial.println("selectedPatternIdx = " + (String)selectedPatternIdx); // DEBUG
-}
-
-void prevPattern() {
-  if (selectedPatternIdx > 0) {
-    selectedPatternIdx--;
-  } else {
-    selectedPatternIdx = numPatterns - 1;
-  }
-  resetIndexesFlags();
-  // changeBrightness(0); // Changing brightness by 0 so that we can make sure the brightness is safe for the new pattern
-  // saveBrightness(); // save stick brightness if it has changed
-}
-*/
-
 // Check to see if the proposed brightness setting is safe for the color
 // This prevents the board from crashing due to power overdraw
 // Note: This function is basing its maximum safe values on no more than 53 lights being lit
 uint8_t makeSafeBrightness(uint8_t brightness, uint8_t colorIdx, int difference) {
+  // TODO - this function needs to be tested, and possibly rewritten
   bool isPOVColor = isPOVColorIndex(colorIdx);
   uint8_t colorIterations = isPOVColor ? 2 : 1; // 2 colors for POV
   int numColors = getNumColors();
@@ -693,11 +475,8 @@ void showColumn() {
   for (int i=0; i < strip.numPixels(); i++) {
     strip.setPixelColor(i, patternColumn[i]);
   }
-
-  // if (myReceiver.isIdle()) {
-    strip.show();
-  // }
-
+  
+  strip.show();
 //  debugPatternColumn();
   
   delay(speedDelay);
@@ -1030,11 +809,6 @@ void pong(uint8_t groupSize) {
   bool isPOV3Color = isPOV3ColorIndex(selectedPatternColorIdx);
   int colorIterations = getNumColorsInPOV(selectedPatternColorIdx);
 
-  // Serial.print(F("ColorIdx: "));
-  // Serial.println(selectedPatternColorIdx);
-  // Serial.print(F("pat_i_0: "));
-  // Serial.println(pat_i_0);
-
   for (int c=0; c < colorIterations; c++) {
     // Get the color
     if (isPOVColor) {
@@ -1055,7 +829,6 @@ void pong(uint8_t groupSize) {
       }      
     }
     showColumn();
-    // Serial.println("");
 
     // Insert POV delay if POV color
     if (isPOVColor || isPOV3Color) {
@@ -1155,43 +928,6 @@ void chase(uint8_t groupSize, bool centerOrigin) {
     pat_i_0 = (pat_i_0 >= 0) ? (pat_i_0 - 1) : (numPixels);
   }
 }
-
-// Small color groups traveling up the stick one after another
-/*
-void chaseRainbow(uint8_t groupSize) {
-  int colorIndexSet[] = {0,1,2};
-  int numColors = sizeof(colorIndexSet) / sizeof(*colorIndexSet);
-  int numPixels = strip.numPixels();
-  // bool pixelOn = false;
-  // int pixel_i = 0;
-
-  // Use modulus to figure out which color to show based on pixel number
-  // while (pixel_i < numPixels) {
-  //   patternColumn[pixel_i] = COLORS[0];
-  // }
-  for (int pixel_i=0; pixel_i < numPixels; pixel_i++) {
-    // patternColumn[pixel_i] = COLORS[colorIndexSet[pixel_i % numColors]];
-    if ((pixel_i + pat_i_0) % (groupSize * 2) < groupSize) {
-      patternColumn[pixel_i] = COLORS[0];
-      Serial.print(F("1 "));
-    } else {
-      patternColumn[pixel_i] = 0;
-      Serial.print(F("0 "));
-    }
-    // for (int j=0; j < groupSize; j++) {
-    //   pixel_i++;
-    //   patternColumn[pixel_i] = COLORS[0];
-    // }
-    // Serial.print(F(""));
-  }
-  showColumn();
-  Serial.println("");
-
-  // Increment iterator and wraparound
-  pat_i_0 = pat_i_0 < numPixels ? pat_i_0 + 1 : 0;
-
-}
-*/
 
 // Stacking animation
 void stackingAnimation() {
@@ -1422,17 +1158,6 @@ void twinkle() {
   int rand_i_0,
     rand_i_1,
     rand_i_2;
-  int slowDownCycles = 5;
-
-/*
-  if (pat_i_0 < slowDownCycles) {
-    pat_i_0++;
-    showColumn();
-    return;
-  } else {
-    pat_i_0 = 0;
-  }  
-*/
 
   for (int c=0; c < colorIterations; c++) {
     // Get the color
@@ -1488,7 +1213,7 @@ uint32_t Wheel(byte WheelPos) {
   return strip.Color(WheelPos * 3, 255 - WheelPos * 3, 0);
 }
 
-// Alert user by flashing stick red
+// Alert user by flashing stick
 void alertUser(uint32_t color, uint8_t numFlashes, uint16_t midDelay, uint16_t endDelay) {    
   for (uint8_t i=0; i < numFlashes; i++) {
     setAllPixels(0); // BLACK
@@ -1709,233 +1434,4 @@ void loop() {
   }
 
   cycleCounter++;
-
-
-  // checkButtonPress();
-  
-  // Some example procedures showing how to display to the pixels:
-  /*
-  oldColorWipe(strip.Color(25, 0, 0), 20); // Red
-  oldColorWipe(strip.Color(50, 50, 20), 200); // White
-  oldColorWipe(strip.Color(0, 255, 0), 20); // Green
-  oldColorWipe(strip.Color(0, 0, 255), 50); // Blue
-  oldColorWipe(strip.Color(0, 0, 0, 255), 50); // White RGBW
-  Send a theater pixel chase in...
-  theaterChase(strip.Color(127, 127, 127), 50); // White
-  theaterChase(strip.Color(127, 0, 0), 50); // Red
-  theaterChase(strip.Color(0, 0, 127), 50); // Blue
-
-  rainbow(20);
-  rainbowCycle(20);
-  theaterChaseRainbow(50);
-  */
 }
-
-// Fill the pixels one after another with a color
-/*
-void oldColorWipe(uint32_t c, uint8_t wait) {
-  for(uint16_t i=0; i<strip.numPixels(); i++) {
-    strip.setPixelColor(i, c);
-    strip.show();
-    delay(wait);
-  }
-}
-*/
-/*
-void rainbow(uint8_t wait) {
-  uint16_t i, j;
-  
-  for(j=0; j<256; j++) {
-    for(i=0; i<strip.numPixels(); i++) {
-      strip.setPixelColor(i, Wheel((i+j) & 255));
-    }
-    strip.show();
-    delay(wait);
-  }
-}
-*/
-
-// Slightly different, this makes the rainbow equally distributed throughout
-/*
-void rainbowCycle(uint8_t wait) {
-  uint16_t i, j;
-
-  for(j=0; j<256*5; j++) { // 5 cycles of all colors on wheel
-    for(i=0; i< strip.numPixels(); i++) {
-      strip.setPixelColor(i, Wheel(((i * 256 / strip.numPixels()) + j) & 255));
-    }
-    strip.show();
-    delay(wait);
-  }
-}
-*/
-
-//Theatre-style crawling lights.
-/*
-void theaterChase(uint32_t c, uint8_t wait) {
-  for (int j=0; j<10; j++) {  //do 10 cycles of chasing
-    for (int q=0; q < 3; q++) {
-      for (uint16_t i=0; i < strip.numPixels(); i=i+3) {
-        strip.setPixelColor(i+q, c);    //turn every third pixel on
-      }
-      strip.show();
-
-      delay(wait);
-
-      for (uint16_t i=0; i < strip.numPixels(); i=i+3) {
-        strip.setPixelColor(i+q, 0);        //turn every third pixel off
-      }
-    }
-  }
-}
-*/
-
-//Theatre-style crawling lights with rainbow effect
-/*
-void theaterChaseRainbow(uint8_t wait) {
-  for (int j=0; j < 256; j++) {     // cycle all 256 colors in the wheel
-    for (int q=0; q < 3; q++) {
-      for (uint16_t i=0; i < strip.numPixels(); i=i+3) {
-        strip.setPixelColor(i+q, Wheel( (i+j) % 255));    //turn every third pixel on
-      }
-      strip.show();
-
-      delay(wait);
-
-      for (uint16_t i=0; i < strip.numPixels(); i=i+3) {
-        strip.setPixelColor(i+q, 0);        //turn every third pixel off
-      }
-    }
-  }
-}
-*/
-
-// Displays diamonds
-/*
-void pattern2() {
-  // Note: this solution prints the whole pattern before returning
-  uint32_t color1 = COLORS[0]; // red
-  uint32_t color2 = COLORS[1]; // green
-  uint8_t row_i = 0;
-    
-  uint8_t height = 15;
-  uint8_t c, k, space = 1;
-
-  // if pattern is at the beginning
-//  if (pat_i
-
-  space = height - 1;
-
-  while (row_i < strip.numPixels()) {
-    // Top half, if printed
-    // Left half, if on stick
-    for (k = 1; k <= height; k++) {
-      for (c = 1; c <= space; c++) {
-        if (row_i >= strip.numPixels())
-          break;
-        patternColumn[row_i] = color1;
-        row_i++;
-      }
-      for (c = 1; c <= 2*k-1;c++) {
-        if (row_i >= strip.numPixels())
-          break;
-        patternColumn[row_i] = color2;
-        row_i++;
-      }
-      for (c = 1; c <= space; c++) {
-        if (row_i >= strip.numPixels())
-          break;
-        patternColumn[row_i] = color1;
-        row_i++;
-      }
-      showColumn();
-      if (row_i >= strip.numPixels())
-        break;
-          
-      space--;
-    }
-  
-    // Bottom half, if printed
-    // Right half, if on stick
-    for (k = 1; k <= height - 1; k++) {
-      for (c= 1; c <= space; c++) {
-        if (row_i >= strip.numPixels())
-          break;
-        patternColumn[row_i] = color1;
-        row_i++;
-      }
-      for (c = 1; c <= 2*(height - k)-1; c++) {
-        if (row_i >= strip.numPixels())
-          break;
-        patternColumn[row_i] = color2;
-        row_i++;
-      }
-      for (c= 1; c <= space; c++) {
-        if (row_i >= strip.numPixels())
-          break;
-        patternColumn[row_i] = color1;
-        row_i++;
-      }
-      if (row_i >= strip.numPixels())
-        break;
-      space++;
-    }
-  }
-}
-*/
-
-// Stretched Diamond
-// This function should stretch the pattern in the array pat by the factor stretch, and
-// then flip it vertically and print the bottom half.
-/*
-void pattern3() {
-  int pixel_i = 0;
-  uint32_t c1 = COLORS[0]; // red
-  uint32_t c2 = COLORS[1]; // green
-  int height = 7;
-  int width = 13;
-  int stretch = 3; // factor by which we are stretching the pattern vertically
-  int pat[height][width] = {
-    {0,0,0,0,0,0,1,0,0,0,0,0,0},
-    {0,0,0,0,0,1,1,1,0,0,0,0,0},
-    {0,0,0,0,1,1,1,1,1,0,0,0,0},
-    {0,0,0,1,1,1,1,1,1,1,0,0,0},
-    {0,0,1,1,1,1,1,1,1,1,1,0,0},
-    {0,1,1,1,1,1,1,1,1,1,1,1,0},
-    {1,1,1,1,1,1,1,1,1,1,1,1,1}
-  };
-
-  int r; // needs to be in this scope
-  for (int c=0; c < width; c++) {
-    // top half
-    for (r=0; r < height; r++) {
-      for (int repeat_i=0; repeat_i < stretch; repeat_i++) {
-        if (pixel_i >= strip.numPixels())
-          break;
-        
-        patternColumn[pixel_i] = pat[r][c] ? c1 : c2;
-        pixel_i++;
-      }
-      if (pixel_i >= strip.numPixels())
-        break;
-    }
-    // bottom half
-    for (r=r-2; r > 0; r--) {
-      for (int repeat_i=0; repeat_i < stretch; repeat_i++) {
-
-        if (pixel_i >= strip.numPixels())
-          break;
-        
-        patternColumn[pixel_i] = pat[r][c] ? c1 : c2;
-        pixel_i++;
-      }
-      if (pixel_i >= strip.numPixels())
-        break;
-    }
-    showColumn();
-    
-    if (pixel_i >= strip.numPixels())
-      break;
-  }
-}
-*/
