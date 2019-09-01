@@ -1549,6 +1549,7 @@ void btnAction(uint8_t btnsVal, bool longPress = false) {
     case 1:
       // Serial.println("1");
       changePattern(1);
+      setAutoCycle(false);
       break;
 
     // Button 2
@@ -1569,7 +1570,8 @@ void btnAction(uint8_t btnsVal, bool longPress = false) {
     // Button 3
     case 4:
       // Serial.println("3");
-      changePattern(-1); 
+      changePattern(-1);
+      setAutoCycle(false);
       break;
 
     // Buttons 1, 3
@@ -1671,6 +1673,11 @@ void toggleAutoCycle() {
   } else {
     Serial.println(F("OFF"));
   }
+}
+
+// Set auto cycle mode ON/OFF
+void setAutoCycle(bool state) {
+  autoCycle = state;
 }
 
 // Check to see if the auto cycle time interval has elapsed
