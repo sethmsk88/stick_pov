@@ -10,11 +10,21 @@
 #define BTN_2_PIN 5
 #define BTN_3_PIN 9
 #define MAX_TIME_VALUE 0xFFFFFFFF
+#define COLOR_ORDER GRB
 
 // Function prototypes
 void colorWipe(uint8_t msDelay);
 void solidColor();
 void chase(uint8_t groupSize, bool centerOrigin = false);
+void rainbow(bool sparkle = false);
+
+//////   BEN, YOU CAN CHANGE THESE TWO VALUES   //////
+const uint8_t numLEDs = 53; // The stick has 53 LEDs
+int POVSpeedDelay = 16; // Milliseconds of delay between colors
+
+const uint8_t MAX_LEDS = 100; // DO NOT CHANGE THIS
+// IMPORTANT NOTE: numLEDs value must also be changed in the applySavedSettings() function if a change to the LED count is made
+
 
 // Each favorite saves two bytes worth of info, so each is allocated two addresses
 // 1st address contains the index of the saved pattern
@@ -47,14 +57,10 @@ const uint8_t COLORS_POV3[][3] = {{0,8,2}};
 
 uint8_t defaultBrightness = 25;//105; // Default is set to 50% of the brightness range
 
-// IMPORTANT NOTE: numLEDs value must also be changed in the applySavedSettings() function if a change to the LED count is made
-const uint8_t numLEDs = 53; // 8 for test device, 53 for stick
-const uint8_t MAX_LEDS = 60;
-
 uint32_t patternColumn[MAX_LEDS] = {};
 int selectedPatternIdx = 0; // default pattern index
 int selectedPatternColorIdx = 0; // default color index
-uint8_t numPatterns = 11;
+uint8_t numPatterns = 12;
 boolean patternChanged = true;
 boolean patternComplete = false; // used when a pattern should only show once
 int pat_i_0 = 0; // an index to track progress of a pattern
@@ -62,8 +68,7 @@ int pat_i_1 = 0; // another index to track progress of a pattern
 int pat_i_2 = 0; // another index to track progress of a pattern
 uint8_t speedDelay = 0; // ms of delay between showing columns
 uint8_t maxSpeedDelay = 45;
-int POVSpeedDelay = 16;
-const int POVSpeedDelayMax = 50;
+const int POVSpeedDelayMax = 500;
 uint16_t lastButtonPress = 0;
 uint16_t pendingButtonPress = 0; // IR value for button press
 unsigned long buttonPressStartTime = 0;
@@ -83,6 +88,8 @@ uint16_t activeButtonPin = 0;
 uint8_t activeBtnsVal = 0;
 uint8_t prevBtnsVal = 0;
 
+uint8_t baseHue = 0; // rotating color used by some patterns
+
 // Adafruit_NeoPixel strip;
 // Define the array of leds
 CRGB leds[numLEDs];
@@ -94,7 +101,7 @@ void setup() {
   // applySavedSettings();
   
   // strip = Adafruit_NeoPixel(numLEDs, DATA_PIN, NEO_GRB + NEO_KHZ800);
-  FastLED.addLeds<WS2812, DATA_PIN, RGB>(leds, numLEDs);
+  FastLED.addLeds<WS2812, DATA_PIN, COLOR_ORDER>(leds, numLEDs);
 
   getFavorite(0); // Set stick to HOME pattern
 
@@ -524,7 +531,7 @@ void showPattern() {
       // Skipping this pattern until it is fixed
       // breatheAnimation();
       solidColor();
-      // break;
+      break;
     case 5:
       twinkle();
       break;
@@ -542,6 +549,10 @@ void showPattern() {
       break;
     case 10:
       pong(10);
+      break;
+    case 11:
+      speedDelay = 12; // TODO: Remove This - I was testing with a slower speed
+      rainbow(true);
       break;
   }
 }
@@ -617,7 +628,7 @@ void solidColor() {
       FastLED.delay(POVSpeedDelay);
     }
 
-    showColumn();
+    showColumn();    
   }
 }
 
@@ -781,8 +792,20 @@ void colorFade() {
   }
 }
 
+/* // NOTE: This rainbow method has a weird color bug while changing brightness
+void newRainbow() {
+  uint8_t deltaHue = 5; // the larger this number is, the smaller the color groupings
+  
+  EVERY_N_MILLISECONDS(5) { baseHue++; }; // Using FastLED macro function to perform an action at a certain time interval
+
+  // FastLED's built-in rainbow generator
+  fill_rainbow(leds, numLEDs, baseHue, deltaHue);
+  FastLED.show();
+}
+*/
+
 // Rainbow
-void rainbow() {
+void rainbow(bool sparkle) {  
   uint16_t pat_i_0_max = 256;
   uint16_t pat_i_1_max = numLEDs;
 
@@ -799,8 +822,24 @@ void rainbow() {
       pat_i_1++;
     }
     pat_i_0++;
+
+    // Add a sparkle if flag is set
+    if (sparkle) {
+      addSparkle(20);
+    }
+
     showColumn();
     return;
+  }
+}
+
+void addSparkle(fract8 chanceOfSparkle) {
+  uint8_t sparklePos;
+  if(random8() < chanceOfSparkle) {
+    sparklePos = random8(numLEDs - 2);
+    // patternColumn[sparklePos - 1] = CRGB::White;
+    patternColumn[sparklePos] = CRGB::White;
+    patternColumn[sparklePos + 1] = CRGB::White;
   }
 }
 
@@ -1209,18 +1248,19 @@ uint32_t Wheel(byte WheelPos) {
   WheelPos = 255 - WheelPos;
   uint32_t newColor;
 
-  if(WheelPos < 85) {
-    newColor = ((255 - WheelPos * 3) << 16) + 0 + (WheelPos * 3);
+  if (WheelPos < 85) {
+    newColor = ((uint32_t)(255 - WheelPos * 3) << 16) + 0 + (WheelPos * 3);
     // return strip.Color(255 - WheelPos * 3, 0, WheelPos * 3);
-  }
-  if(WheelPos < 170) {
+  } else if (WheelPos < 170) {
     WheelPos -= 85;
-    newColor = 0 + ((WheelPos * 3) << 8) + (255 - WheelPos * 3);
+    newColor = 0 + ((uint32_t)(WheelPos * 3) << 8) + (255 - WheelPos * 3);
     // return strip.Color(0, WheelPos * 3, 255 - WheelPos * 3);
+  } else {
+    WheelPos -= 170;
+    newColor = ((uint32_t)(WheelPos * 3) << 16) + ((uint32_t)(255 - WheelPos * 3) << 8) + 0;
+    // return strip.Color(WheelPos * 3, 255 - WheelPos * 3, 0);
   }
-  WheelPos -= 170;
-  newColor = ((WheelPos * 3) << 16) + ((255 - WheelPos * 3) << 8) + 0;
-  // return strip.Color(WheelPos * 3, 255 - WheelPos * 3, 0);
+  return newColor;
 }
 
 // Alert user by flashing stick
