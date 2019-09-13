@@ -30,19 +30,23 @@ const uint8_t MAX_LEDS = 100; // DO NOT CHANGE THIS
 const uint16_t VERSION = 0;
 
 // EEPROM: 1024 Bytes
-// Each favorite saves two bytes worth of info, so each is allocated two addresses
+// Each favorite saves four bytes worth of info, so each is allocated four addresses
 // 1st address contains the index of the saved pattern
 // 2nd address contains the speed delay of the saved pattern
 // 3rd address contains the color for the saved pattern
 // 4th address contains the POV speed delay for the saved pattern
 const uint8_t UNSET_EEPROM_VAL = 255; // Initial state for all EEPROM addresses
+const uint16_t HOME_ADDR = 0;
+const uint16_t BRIGHTNESS_SAVED_ADDR = 4;
+
+// TODO: Get rid of these favorite addresses, and rewrite getFavoriteAddr() in the process
 const uint16_t FAV_0_ADDR = 0;
 const uint16_t FAV_1_ADDR = 4;
 const uint16_t FAV_2_ADDR = 8;
 const uint16_t FAV_3_ADDR = 12;
 const uint16_t FAV_4_ADDR = 16;
 const uint16_t NUM_LEDS_SAVED_ADDR = 17;
-const uint16_t BRIGHTNESS_SAVED_ADDR = 18;
+
 const uint16_t VERSION_ADDR = 1022; // Last 2 bytes of EEPROM
 
 // Colors are in GRB format
@@ -61,7 +65,7 @@ const uint32_t COLORS[] = {
 const uint8_t COLORS_POV[][2] = {{0,8},{0,2},{8,2},{0,4},{6,7},{8,7},{4,6}}; // combinations of color indexes for POV
 const uint8_t COLORS_POV3[][3] = {{0,8,2}};
 
-uint8_t defaultBrightness = 25;//105; // Default is set to 50% of the brightness range
+uint8_t defaultBrightness = 105; // Default is set to 50% of the brightness range
 
 uint32_t patternColumn[MAX_LEDS] = {};
 int selectedPatternIdx = 0; // default pattern index
@@ -104,20 +108,17 @@ void setup() {
   Serial.begin(9600); // Connect with Serial monitor for testing purposes
 
   initEEPROM(); // Resets EEPROM saved values when version number changes
-  // applySavedSettings();
+  applySavedSettings();
   
   // strip = Adafruit_NeoPixel(numLEDs, DATA_PIN, NEO_GRB + NEO_KHZ800);
   FastLED.addLeds<WS2812, DATA_PIN, COLOR_ORDER>(leds, numLEDs);
-
-  getFavorite(0); // Set stick to HOME pattern
 
   // Initialize buttons
   pinMode(BTN_1_PIN, INPUT_PULLUP);
   pinMode(BTN_2_PIN, INPUT_PULLUP);
   pinMode(BTN_3_PIN, INPUT_PULLUP);
 
-  // FastLED.setBrightness(defaultBrightness);
-  // FastLED.show();
+  FastLED.setBrightness(defaultBrightness);
 
   randomSeed(analogRead(0)); // seed random number generator for functions that need it
 }
@@ -187,8 +188,25 @@ void applySavedSettings() {
     speedDelay_addr,
     patternColorIndex_addr,
     POVSpeedDelay_addr;
-  int unsetVal = 255; // the number stored at an address that is unset
   
+  // Load HOME pattern if it has previously been saved
+  if (EEPROM.read(HOME_ADDR) != UNSET_EEPROM_VAL) {
+    selectedPatternIdx = EEPROM.read(HOME_ADDR);
+  } else {
+    // Else, load the default pattern, and save it as the HOME pattern
+    selectedPatternIdx = 0; // default pattern
+    EEPROM.update(HOME_ADDR, selectedPatternIdx);
+  }
+
+  // Load brightness setting if it has previously been saved
+  if (EEPROM.read(BRIGHTNESS_SAVED_ADDR) != UNSET_EEPROM_VAL) {
+    defaultBrightness = EEPROM.read(BRIGHTNESS_SAVED_ADDR);
+  }
+
+  
+
+
+  /**************
   // if favorites have not yet been saved, set them to 0
   int numFavorites = 5;
   for (int i=0; i < numFavorites; i++) {
@@ -197,7 +215,7 @@ void applySavedSettings() {
     patternColorIndex_addr = getFavoriteAddr(i, 2); // Load color index for this favorite
     POVSpeedDelay_addr = getFavoriteAddr(i, 3); // Load color index for this favorite
 
-    if (EEPROM.read(patternIndex_addr) == unsetVal) {
+    if (EEPROM.read(patternIndex_addr) == UNSET_EEPROM_VAL) {
       EEPROM.update(patternIndex_addr, 0);
       EEPROM.update(speedDelay_addr, 0);
       EEPROM.update(patternColorIndex_addr, 0);
@@ -218,31 +236,35 @@ void applySavedSettings() {
     // TODO: Can't re-assign a constant value. Find a new way to change the number of LEDs
     // numLEDs = 53; // 8 for test device, 53 for stick
   }
+  ***************/
 }
 
 // Save a favorite
+// TODO: This function needs to be re-written to use the new memory addresses
 void setFavorite(uint8_t i) {
   if (selectedPatternIdx < 0) {
     // Serial.println("ERROR: Cannot save a pattern favorite whose index is negative");
     return;
   }
   
-  int patternIndex_addr = getFavoriteAddr(i, 0);
-  int speedDelay_addr = getFavoriteAddr(i, 1);
-  int patternColorIndex_addr = getFavoriteAddr(i, 2);
-  int POVSpeedDelay_addr = getFavoriteAddr(i, 3);
+  // int patternIndex_addr = getFavoriteAddr(i, 0);
+  // int speedDelay_addr = getFavoriteAddr(i, 1);
+  // int patternColorIndex_addr = getFavoriteAddr(i, 2);
+  // int POVSpeedDelay_addr = getFavoriteAddr(i, 3);
   
-  EEPROM.update(patternIndex_addr, selectedPatternIdx);
-  EEPROM.update(speedDelay_addr, speedDelay);
-  EEPROM.update(patternColorIndex_addr, selectedPatternColorIdx);
-  EEPROM.update(POVSpeedDelay_addr, POVSpeedDelay);
+  // EEPROM.update(patternIndex_addr, selectedPatternIdx);
+  // EEPROM.update(speedDelay_addr, speedDelay);
+  // EEPROM.update(patternColorIndex_addr, selectedPatternColorIdx);
+  // EEPROM.update(POVSpeedDelay_addr, POVSpeedDelay);
 
   // alertUser(COLORS[1], 2, 50, 200); // Flash stick green to alert a save
   // Serial.println("Favorite " + (String)i + " saved:");
 }
 
 // Get a saved favorite, and make it active
+// TODO: This function needs to be re-written to use the new memory addresses
 void getFavorite(uint8_t i) {
+  /*
   int patternIndex_addr = getFavoriteAddr(i, 0);
   int speedDelay_addr = getFavoriteAddr(i, 1);
   int patternColorIndex_addr = getFavoriteAddr(i, 2);
@@ -254,6 +276,7 @@ void getFavorite(uint8_t i) {
   POVSpeedDelay = EEPROM.read(POVSpeedDelay_addr);
   
   resetIndexesFlags();
+  */
 }
 
 // Get address of favorite in EEPROM
@@ -1386,8 +1409,10 @@ void btnAction(uint8_t btnsVal, bool longPress = false) {
 
     // Buttons 1, 3
     case 5:
-      // Serial.println("1 3");
-      if (longPress) getFavorite(0); // Set to HOME pattern
+      if (longPress) {
+        Serial.println("Set to HOME");
+        selectedPatternIdx = EEPROM.read(HOME_ADDR); // Set to HOME pattern
+      }
       break;
       
     // Buttons 2, 3
@@ -1401,9 +1426,20 @@ void btnAction(uint8_t btnsVal, bool longPress = false) {
 
     // Buttons 1, 2, 3
     case 7:
-      // Serial.println("1 2 3");
-      // Save the current pattern as the HOME pattern
-      setFavorite(0);
+      // Set stick to OFF mode
+      // If already in OFF mode, break
+      if (selectedPatternIdx == -1) {
+        break;
+      }
+
+      // Save the current pattern as the HOME pattern and save the brightness
+      EEPROM.update(HOME_ADDR, selectedPatternIdx);
+      saveBrightness();
+
+      Serial.print(F("Saved HOME: "));
+      Serial.println(EEPROM.read(HOME_ADDR));
+      Serial.print(F("Saved Brightness: "));
+      Serial.println(EEPROM.read(BRIGHTNESS_SAVED_ADDR));
 
       // Set pattern to the OFF pattern
       selectedPatternIdx = -1;
