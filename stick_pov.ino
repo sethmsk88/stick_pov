@@ -11,6 +11,7 @@
 #define BTN_3_PIN 9
 #define MAX_TIME_VALUE 0xFFFFFFFF
 #define COLOR_ORDER GRB
+#define MAX_EEPROM_ADDR 1023
 
 // Function prototypes
 void colorWipe(uint8_t msDelay);
@@ -25,12 +26,16 @@ int POVSpeedDelay = 16; // Milliseconds of delay between colors
 const uint8_t MAX_LEDS = 100; // DO NOT CHANGE THIS
 // IMPORTANT NOTE: numLEDs value must also be changed in the applySavedSettings() function if a change to the LED count is made
 
+// Version number should be incremented each time an update is pushed
+const uint16_t VERSION = 0;
 
+// EEPROM: 1024 Bytes
 // Each favorite saves two bytes worth of info, so each is allocated two addresses
 // 1st address contains the index of the saved pattern
 // 2nd address contains the speed delay of the saved pattern
 // 3rd address contains the color for the saved pattern
 // 4th address contains the POV speed delay for the saved pattern
+const uint8_t UNSET_EEPROM_VAL = 255; // Initial state for all EEPROM addresses
 const uint16_t FAV_0_ADDR = 0;
 const uint16_t FAV_1_ADDR = 4;
 const uint16_t FAV_2_ADDR = 8;
@@ -38,6 +43,7 @@ const uint16_t FAV_3_ADDR = 12;
 const uint16_t FAV_4_ADDR = 16;
 const uint16_t NUM_LEDS_SAVED_ADDR = 17;
 const uint16_t BRIGHTNESS_SAVED_ADDR = 18;
+const uint16_t VERSION_ADDR = 1022; // Last 2 bytes of EEPROM
 
 // Colors are in GRB format
 const uint32_t COLORS[] = {
@@ -97,7 +103,7 @@ CRGB leds[numLEDs];
 void setup() {
   Serial.begin(9600); // Connect with Serial monitor for testing purposes
 
-  // initEEPROM(); // ONLY RUN THIS ONCE - Usually Leave This Commented Out
+  initEEPROM(); // Resets EEPROM saved values when version number changes
   // applySavedSettings();
   
   // strip = Adafruit_NeoPixel(numLEDs, DATA_PIN, NEO_GRB + NEO_KHZ800);
@@ -136,17 +142,46 @@ void changeNumLEDs(int difference) {
   // Serial.println((String)numLEDs);
 }
 
-// Initialize EEPROM memory addresses that we plan to use
-// ONLY CALL THIS WHEN SETTING UP A NEW STICK, OR WHEN A CODE CHANGE
-// WAS MADE THAT INVOLVES THE EEPROM
-void initEEPROM() {
-  int numMemAddressesUsed = 19;
-  for (int i=0; i < numMemAddressesUsed; i++) {
-    EEPROM.update(i, 255);
+// Initialize EEPROM memory addresses if version number has changed
+void initEEPROM() {  
+  // Check to see if version has changed since last initialization
+  uint16_t savedVersion = getSaved16(VERSION_ADDR);
+  
+  Serial.print(F("Saved version: "));
+  Serial.println(savedVersion);
+
+  // If version has changed, save new version number, and re-initialize saved addresses
+  if (VERSION != savedVersion) {
+    // Save new version number in EEPROM
+    setSaved16(VERSION_ADDR, VERSION);
+
+    Serial.print(F("New saved version: "));
+    Serial.println(getSaved16(VERSION_ADDR));
+    
+    // Do NOT re-initialize the version number memory addresses (i.e. the last 2 bytes in EEPROM)
+    for (int i=0; i <= MAX_EEPROM_ADDR - 2; i++) {
+      EEPROM.update(i, UNSET_EEPROM_VAL);
+    }
   }
 }
 
-// TODO - Implement the EEPROM re-initialization funtion before re-activating this
+// Set a 16-bit value in EEPROM memory
+// NOTE: 16-bit values are saved in big-endian order
+void setSaved16(uint16_t addr, uint16_t val) {  
+  EEPROM.update(addr, (uint8_t)(val >> 8));
+  EEPROM.update(addr + 1, (uint8_t)val);
+}
+
+// Get a saved 16-bit value from EEPROM memory
+// NOTE: 16-bit values are saved in big-endian order
+uint16_t getSaved16(uint16_t addr) {
+  if (addr > MAX_EEPROM_ADDR - 1) {
+    return 0; // ERROR VALUE
+  }
+  return ((uint16_t)EEPROM.read(addr) << 8) + EEPROM.read(addr + 1);
+}
+
+// TODO - Implement the EEPROM re-initialization function before re-activating this
 void applySavedSettings() {
   int patternIndex_addr,
     speedDelay_addr,
