@@ -14,7 +14,6 @@
 #define MAX_EEPROM_ADDR 1023
 
 // Function prototypes
-void colorWipe(uint8_t msDelay);
 void solidColor();
 void chase(uint8_t groupSize, bool centerOrigin = false);
 void rainbow(bool sparkle = false);
@@ -526,7 +525,7 @@ void showPattern() {
       sixColorPOV();
       break;
     case 2:
-      colorWipe(5);
+      colorWipe();
       break;
     case 3:
       stackingAnimation();
@@ -640,7 +639,7 @@ void solidColor() {
 }
 
 // Color Wipe
-void colorWipe(uint8_t msDelay) {
+void colorWipe() {
   int numColors = getNumColors();
   int numPOVColors = getNumPOVColors();
   bool isPOVColor = isPOVColorIndex(selectedPatternColorIdx);
@@ -668,7 +667,6 @@ void colorWipe(uint8_t msDelay) {
     }
 
     FastLED.show();
-    FastLED.delay(speedDelay);
   }
 
   if (!patternComplete) {
@@ -678,7 +676,7 @@ void colorWipe(uint8_t msDelay) {
     if (pat_i_0 == numLEDs - 1) {
       patternComplete = true;
     }
-    FastLED.delay(msDelay); // delay to slow down the pattern animation
+    FastLED.delay(speedDelay);
   }
 }
 
@@ -717,12 +715,15 @@ void colorWipeLoop() {
       }
     }
 
-    // Insert POV delay
-    FastLED.delay(POVSpeedDelay);
+    // Insert POV delay if POV color
+    if (isPOVColor || isPOV3Color) {
+      FastLED.delay(POVSpeedDelay);
+    }
     
     FastLED.show();
-    FastLED.delay(speedDelay);
   }
+
+  FastLED.delay(speedDelay);
 
   bool animationComplete = false;
   // Check to see if the pattern animation is now complete
