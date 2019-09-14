@@ -1,4 +1,3 @@
-#include <Adafruit_NeoPixel.h>
 #include <FastLED.h>
 #ifdef __AVR__
   #include <avr/power.h>
@@ -6,9 +5,10 @@
 #include <EEPROM.h>
 
 #define DATA_PIN 11
-#define BTN_1_PIN 3
-#define BTN_2_PIN 5
-#define BTN_3_PIN 9
+#define BTN_1_PIN 3 // Stick: 3, Brain Box: 5
+#define BTN_2_PIN 5 // Stick: 5, Brain Box: 8
+#define BTN_3_PIN 9 // Stick: 9, Brain Box: 12
+
 #define MAX_TIME_VALUE 0xFFFFFFFF
 #define COLOR_ORDER GRB
 #define MAX_EEPROM_ADDR 1023
@@ -38,15 +38,6 @@ const uint16_t VERSION = 0;
 const uint8_t UNSET_EEPROM_VAL = 255; // Initial state for all EEPROM addresses
 const uint16_t HOME_ADDR = 0;
 const uint16_t BRIGHTNESS_SAVED_ADDR = 4;
-
-// TODO: Get rid of these favorite addresses, and rewrite getFavoriteAddr() in the process
-const uint16_t FAV_0_ADDR = 0;
-const uint16_t FAV_1_ADDR = 4;
-const uint16_t FAV_2_ADDR = 8;
-const uint16_t FAV_3_ADDR = 12;
-const uint16_t FAV_4_ADDR = 16;
-const uint16_t NUM_LEDS_SAVED_ADDR = 17;
-
 const uint16_t VERSION_ADDR = 1022; // Last 2 bytes of EEPROM
 
 // Colors are in GRB format
@@ -67,7 +58,7 @@ const uint8_t COLORS_POV3[][3] = {{0,8,2}};
 
 uint8_t defaultBrightness = 105; // Default is set to 50% of the brightness range
 
-uint32_t patternColumn[MAX_LEDS] = {};
+// uint32_t patternColumn[MAX_LEDS] = {};
 int selectedPatternIdx = 0; // default pattern index
 int selectedPatternColorIdx = 0; // default color index
 uint8_t numPatterns = 12;
@@ -124,6 +115,7 @@ void setup() {
 }
 
 // Change the number of LEDs on the strip
+/*
 void changeNumLEDs(int difference) {
   // TODO: There is a problem with this function. The method updateLength causes the stick to freeze
   // TODO: if it's a negative difference, pulse the stick a solid color and delay briefly, since this action
@@ -142,6 +134,7 @@ void changeNumLEDs(int difference) {
   // Serial.print(F("Num LEDs: "));
   // Serial.println((String)numLEDs);
 }
+*/
 
 // Initialize EEPROM memory addresses if version number has changed
 void initEEPROM() {  
@@ -282,6 +275,7 @@ void getFavorite(uint8_t i) {
 // Get address of favorite in EEPROM
 // fav_i - Favorite number (0 - 4)
 // attr_i - index of the favorite attribute (0 - 3)
+/*
 int getFavoriteAddr(int fav_i, int attr_i) {
   switch (fav_i) {
     case 0:
@@ -304,6 +298,7 @@ int getFavoriteAddr(int fav_i, int attr_i) {
       return FAV_0_ADDR + attr_i;
   }
 }
+*/
 
 void saveBrightness() {
   EEPROM.update(BRIGHTNESS_SAVED_ADDR, FastLED.getBrightness());
@@ -541,14 +536,13 @@ int getNumColorsInPOV(int colorIdx) {
 // Set the all pixels on the strip to the values in the patternColumn array
 // and then show the pixels
 void showColumn() {
-  for (int i=0; i < numLEDs; i++) {
-    leds[i] = patternColumn[i];
+  // for (int i=0; i < numLEDs; i++) {
+    // leds[i] = patternColumn[i];
     // strip.setPixelColor(i, patternColumn[i]);
-  }
+  // }
   
-  FastLED.show();
 //  debugPatternColumn();
-  
+  FastLED.show();
   FastLED.delay(speedDelay);
 }
 
@@ -648,7 +642,7 @@ void sixColorPOV() {
   }
 
   for (uint8_t j=0; j < numLEDs; j++) {
-    patternColumn[j] = COLORS[colorIndexes[pat_i_0]];
+    leds[j] = COLORS[colorIndexes[pat_i_0]];
   }
   showColumn();
 
@@ -678,7 +672,7 @@ void solidColor() {
     }
 
     for (uint8_t i=0; i < numLEDs; i++) {
-      patternColumn[i] = color;
+      leds[i] = color;
     }
 
     // Insert POV delay if POV color
@@ -711,7 +705,9 @@ void colorWipe(uint8_t msDelay) {
     }
 
     for (uint8_t i=0; i <= pat_i_0; i++) {
-      patternColumn[i] = color;
+      Serial.print("i: ");
+      Serial.println(i);
+      leds[i] = color;
     }
 
     // Insert POV delay if POV color
@@ -726,8 +722,7 @@ void colorWipe(uint8_t msDelay) {
     pat_i_0++; // increase pattern index
     
     // Check to see if pattern is complete
-    // TODO: shouldn't this be comparing against (numLEDs - 1)?
-    if (pat_i_0 == numLEDs) {
+    if (pat_i_0 == numLEDs - 1) {
       patternComplete = true;
     }
     FastLED.delay(msDelay); // delay to slow down the pattern animation
@@ -761,11 +756,11 @@ void colorWipeLoop() {
     // Light the pixels
     if (patDirection == 0) {
       for (uint16_t pixel_i=0; pixel_i <= pat_i_0; pixel_i++) {
-        patternColumn[pixel_i] = color;
+        leds[pixel_i] = color;
       }
     } else {
       for (int pixel_i = numPixels - 1; pixel_i >= pat_i_0; pixel_i--) {
-        patternColumn[pixel_i] = color;
+        leds[pixel_i] = color;
       }
     }
 
@@ -837,8 +832,8 @@ void colorFade() {
   gapColor = gapColor | (((uint32_t)(gapColor_R)) << 8);
   gapColor = gapColor | ((uint32_t)(gapColor_B));
 
-  for (int pixel_i=0; pixel_i <= numPixels; pixel_i++) {
-    patternColumn[pixel_i] = gapColor;
+  for (int pixel_i=0; pixel_i < numPixels; pixel_i++) {
+    leds[pixel_i] = gapColor;
   }
   showColumn();
 
@@ -876,7 +871,7 @@ void rainbow(bool sparkle) {
   }
   while (pat_i_0 < 256) {
     while (pat_i_1 < pat_i_1_max) {
-      patternColumn[pat_i_1] = Wheel(((pat_i_1 * 256 / numLEDs) + pat_i_0) & 255);
+      leds[pat_i_1] = Wheel(((pat_i_1 * 256 / numLEDs) + pat_i_0) & 255);
       pat_i_1++;
     }
     pat_i_0++;
@@ -895,9 +890,8 @@ void addSparkle(fract8 chanceOfSparkle) {
   uint8_t sparklePos;
   if(random8() < chanceOfSparkle) {
     sparklePos = random8(numLEDs - 2);
-    // patternColumn[sparklePos - 1] = CRGB::White;
-    patternColumn[sparklePos] = CRGB::White;
-    patternColumn[sparklePos + 1] = CRGB::White;
+    leds[sparklePos] = CRGB::White;
+    leds[sparklePos + 1] = CRGB::White;
   }
 }
 
@@ -923,10 +917,10 @@ void pong(uint8_t groupSize) {
 
     for (int pixel_i=0; pixel_i < numPixels; pixel_i++) {
       if ((pixel_i >= pat_i_0) && (pixel_i < pat_i_0 + groupSize)) {
-        patternColumn[pixel_i] = color;
+        leds[pixel_i] = color;
         // Serial.print(F("1"));
       } else {
-        patternColumn[pixel_i] = 0;
+        leds[pixel_i] = 0;
         // Serial.print(F("0"));
       }      
     }
@@ -1003,10 +997,10 @@ void chase(uint8_t groupSize, bool centerOrigin) {
     
       // Serial.print((String)((pixel_i + offsetIdx) % (groupSize * 2)) + "  ");
       if (abs((pixel_i + offsetIdx) % (groupSize * 2)) < groupSize) {
-        patternColumn[pixel_i] = color;
+        leds[pixel_i] = color;
         // Serial.print(F("1 "));
       } else {
-        patternColumn[pixel_i] = 0;
+        leds[pixel_i] = 0;
         // Serial.print(F("0 "));
       }
     }
@@ -1066,19 +1060,19 @@ void stackingAnimation() {
       // Make 3 pixels travel down the stick
       for (int travel_i = 2; travel_i < pat_i_0; travel_i++) {
         if (travel_i == pat_i_1 || travel_i == pat_i_1 - 1 || travel_i == pat_i_1 - 2) {
-          patternColumn[travel_i - 2] = color;
-          patternColumn[travel_i - 1] = color;
-          patternColumn[travel_i] = color;
+          leds[travel_i - 2] = color;
+          leds[travel_i - 1] = color;
+          leds[travel_i] = color;
           // Serial.print(F("1"));
         } else {
-          patternColumn[travel_i] = 0; // BLACK
+          leds[travel_i] = 0; // BLACK
           // Serial.print(F("0"));
         }
       }
     
       // Turn on the lit pixels
       for (int lit_i = pat_i_0; lit_i < numPixels; lit_i++) {
-        patternColumn[lit_i] = color;
+        leds[lit_i] = color;
         // Serial.print(F("1"));
       }
 
@@ -1118,13 +1112,13 @@ void stackingAnimation() {
       // Make a single pixel travel down the stick
       for (int travel_i = numPixels - 1; travel_i > pat_i_0 + 2; travel_i--) {
         if (travel_i == pat_i_1 || travel_i == pat_i_1 + 1 || travel_i == pat_i_1 + 2) {
-          patternColumn[travel_i + 2] = color;
-          patternColumn[travel_i + 1] = color;
-          patternColumn[travel_i] = color;
+          leds[travel_i + 2] = color;
+          leds[travel_i + 1] = color;
+          leds[travel_i] = color;
 
           // Serial.print(F("1"));
         } else {
-          patternColumn[travel_i] = 0; // BLACK
+          leds[travel_i] = 0; // BLACK
 
           // Serial.print(F("0"));
         }
@@ -1132,7 +1126,7 @@ void stackingAnimation() {
     
       // Turn on the lit pixels
       for (int lit_i = pat_i_0; lit_i >= 0; lit_i--) {
-        patternColumn[lit_i] = color;
+        leds[lit_i] = color;
 
         // Serial.print(F("1"));
       }
@@ -1184,7 +1178,7 @@ void breatheAnimation() {
     
     // Light the pixels
     for (int i = 0; i < numLEDs; i++) {
-      patternColumn[i] = color;
+      leds[i] = color;
     }
     FastLED.setBrightness(pat_i_1);
 
@@ -1277,9 +1271,9 @@ void twinkle() {
       }
 
       if (pixel_i == rand_i_0 || pixel_i == rand_i_1 || pixel_i == rand_i_2) {
-        patternColumn[pixel_i] = color;
+        leds[pixel_i] = color;
       } else {
-        patternColumn[pixel_i] = 0; // BLACK
+        leds[pixel_i] = 0; // BLACK
       }
       pixel_i++;
     }
@@ -1295,7 +1289,7 @@ void twinkle() {
 
 void setAllPixels(uint32_t color) {
   for (int i=0; i < numLEDs; i++) {
-    patternColumn[i] = color;
+    leds[i] = color;
   }
   showColumn();
 }
@@ -1454,6 +1448,7 @@ void checkButtonPressNew() {
   bool btn1 = getButtonState(BTN_1_PIN);
   bool btn2 = getButtonState(BTN_2_PIN);
   bool btn3 = getButtonState(BTN_3_PIN);
+
   uint8_t currentBtnsVal = 0;
   bool btnStateChanged = false;
   bool btnReleased = false;
