@@ -114,28 +114,6 @@ void setup() {
   randomSeed(analogRead(0)); // seed random number generator for functions that need it
 }
 
-// Change the number of LEDs on the strip
-/*
-void changeNumLEDs(int difference) {
-  // TODO: There is a problem with this function. The method updateLength causes the stick to freeze
-  // TODO: if it's a negative difference, pulse the stick a solid color and delay briefly, since this action
-  int minNumLEDs = 5; // setting min number of pixels to 5, because their is a weird bug below 5
-  uint16_t currentNumLEDs = numLEDs;
-  uint16_t newNumLEDs = currentNumLEDs + difference;
-
-  if (newNumLEDs >= minNumLEDs && newNumLEDs <= MAX_LEDS) {
-    // strip.updateLength(newNumLEDs); // ERROR - DISABLED FOR NOW
-    showColumn();
-    
-    // Save number of LEDs to non-volatile memory
-    EEPROM.update(NUM_LEDS_SAVED_ADDR, (uint8_t)numLEDs);
-  }
-
-  // Serial.print(F("Num LEDs: "));
-  // Serial.println((String)numLEDs);
-}
-*/
-
 // Initialize EEPROM memory addresses if version number has changed
 void initEEPROM() {  
   // Check to see if version has changed since last initialization
@@ -389,21 +367,15 @@ void changeBrightness(int difference) {
   // change the brightness level
   if (newBrightness < minBrightness) {
     newBrightness = minBrightness;
-    // Serial.println("Here");
     alertUser(COLORS[0], 2, 50, 200);
   } else if (newBrightness > maxBrightness) {
     newBrightness = maxBrightness;
-    // Serial.println("There");
     alertUser(COLORS[0], 2, 50, 200);
   }
 
-  // newBrightness = makeSafeBrightness(newBrightness, selectedPatternColorIdx, difference);
-
-  // Serial.print(F("Brightness: "));
-  // Serial.println((String)newBrightness);
-
   FastLED.setBrightness((uint8_t)newBrightness);
-  showColumn();
+  FastLED.show();
+  FastLED.delay(speedDelay);
 }
 
 void changeSpeed(int difference) {
@@ -426,9 +398,6 @@ void changePOVSpeed(int difference) {
   }
 
   POVSpeedDelay = newPOVSpeed;
-
-  // Serial.print(F("POV Speed Delay: "));
-  // Serial.println((String)POVSpeedDelay);
 }
 
 // Change animation speed
@@ -442,11 +411,7 @@ void changeAnimationSpeed(int difference) {
     newAnimationSpeed = maxSpeedDelay;
     alertUser(COLORS[0], 2, 50, 200);
   }
-
   speedDelay = newAnimationSpeed;
-
-  // Serial.print(F("Animation Speed Delay: "));
-  // Serial.println((String)speedDelay);
 }
 
 // Change direction of pattern
@@ -531,19 +496,6 @@ int getNumColorsInPOV(int colorIdx) {
   } else {
     return 1;
   }
-}
-
-// Set the all pixels on the strip to the values in the patternColumn array
-// and then show the pixels
-void showColumn() {
-  // for (int i=0; i < numLEDs; i++) {
-    // leds[i] = patternColumn[i];
-    // strip.setPixelColor(i, patternColumn[i]);
-  // }
-  
-//  debugPatternColumn();
-  FastLED.show();
-  FastLED.delay(speedDelay);
 }
 
 /*
@@ -635,7 +587,8 @@ void sixColorPOV() {
 
     if (colorSetMaxBrightness < currentBrightness) {
       FastLED.setBrightness(colorSetMaxBrightness);
-      showColumn();
+      FastLED.show();
+      FastLED.delay(speedDelay);
       // Serial.print(F("Brightness changed: "));
       // Serial.println(colorSetMaxBrightness);
     }
@@ -644,7 +597,8 @@ void sixColorPOV() {
   for (uint8_t j=0; j < numLEDs; j++) {
     leds[j] = COLORS[colorIndexes[pat_i_0]];
   }
-  showColumn();
+  FastLED.show();
+  FastLED.delay(speedDelay);
 
   FastLED.delay(POVSpeedDelay);
 
@@ -680,13 +634,13 @@ void solidColor() {
       FastLED.delay(POVSpeedDelay);
     }
 
-    showColumn();    
+    FastLED.show();
+    FastLED.delay(speedDelay);
   }
 }
 
 // Color Wipe
 void colorWipe(uint8_t msDelay) {
-  // TODO: after switching patterns several times, this pattern gets stuck at the beginning of its animation
   int numColors = getNumColors();
   int numPOVColors = getNumPOVColors();
   bool isPOVColor = isPOVColorIndex(selectedPatternColorIdx);
@@ -705,8 +659,6 @@ void colorWipe(uint8_t msDelay) {
     }
 
     for (uint8_t i=0; i <= pat_i_0; i++) {
-      Serial.print("i: ");
-      Serial.println(i);
       leds[i] = color;
     }
 
@@ -715,7 +667,8 @@ void colorWipe(uint8_t msDelay) {
       FastLED.delay(POVSpeedDelay);
     }
 
-    showColumn();
+    FastLED.show();
+    FastLED.delay(speedDelay);
   }
 
   if (!patternComplete) {
@@ -767,7 +720,8 @@ void colorWipeLoop() {
     // Insert POV delay
     FastLED.delay(POVSpeedDelay);
     
-    showColumn();
+    FastLED.show();
+    FastLED.delay(speedDelay);
   }
 
   bool animationComplete = false;
@@ -835,7 +789,8 @@ void colorFade() {
   for (int pixel_i=0; pixel_i < numPixels; pixel_i++) {
     leds[pixel_i] = gapColor;
   }
-  showColumn();
+  FastLED.show();
+  FastLED.delay(speedDelay);
 
   if (pat_i_1 < steps - 1) {
     pat_i_1++;
@@ -881,7 +836,8 @@ void rainbow(bool sparkle) {
       addSparkle(20);
     }
 
-    showColumn();
+    FastLED.show();
+    FastLED.delay(speedDelay);
     return;
   }
 }
@@ -924,7 +880,8 @@ void pong(uint8_t groupSize) {
         // Serial.print(F("0"));
       }      
     }
-    showColumn();
+    FastLED.show();
+    FastLED.delay(speedDelay);
 
     // Insert POV delay if POV color
     if (isPOVColor || isPOV3Color) {
@@ -1004,7 +961,8 @@ void chase(uint8_t groupSize, bool centerOrigin) {
         // Serial.print(F("0 "));
       }
     }
-    showColumn();
+    FastLED.show();
+    FastLED.delay(speedDelay);
 
     // Insert POV delay if POV color
     if (isPOVColor || isPOV3Color) {
@@ -1083,7 +1041,8 @@ void stackingAnimation() {
         FastLED.delay(POVSpeedDelay);
       }
 
-      showColumn();
+      FastLED.show();
+      FastLED.delay(speedDelay);
     }
 
     pat_i_1++;
@@ -1138,7 +1097,8 @@ void stackingAnimation() {
         FastLED.delay(POVSpeedDelay);
       }
 
-      showColumn();
+      FastLED.show();
+      FastLED.delay(speedDelay);
     }
 
     pat_i_1--;
@@ -1187,7 +1147,8 @@ void breatheAnimation() {
       FastLED.delay(POVSpeedDelay);
     }
 
-    showColumn();
+    FastLED.show();
+    FastLED.delay(speedDelay);
   }
 
   // Oscillate brightness from min to max
@@ -1283,7 +1244,8 @@ void twinkle() {
       FastLED.delay(POVSpeedDelay);
     }
 
-    showColumn();
+    FastLED.show();
+    FastLED.delay(speedDelay);
   }
 }
 
@@ -1291,7 +1253,8 @@ void setAllPixels(uint32_t color) {
   for (int i=0; i < numLEDs; i++) {
     leds[i] = color;
   }
-  showColumn();
+  FastLED.show();
+  FastLED.delay(speedDelay);
 }
 
 // Input a value 0 to 255 to get a color value.
@@ -1327,7 +1290,8 @@ void alertUser(uint32_t color, uint8_t numFlashes, uint16_t midDelay, uint16_t e
   FastLED.delay(endDelay);
 
   patternChanged = true; // Trigger a pattern restart for patterns that are unchanging
-  showColumn();
+  FastLED.show();
+  FastLED.delay(speedDelay);
 }
 
 // Reset indexes and flags
