@@ -1,4 +1,3 @@
-#include <Adafruit_NeoPixel.h>
 #include <FastLED.h>
 #ifdef __AVR__
   #include <avr/power.h>
@@ -6,22 +5,24 @@
 #include <EEPROM.h>
 
 #define DATA_PIN 11
-#define BTN_1_PIN 3
-#define BTN_2_PIN 5
-#define BTN_3_PIN 9
+#define BTN_1_PIN 3 // Stick: 3, Brain Box: 5
+#define BTN_2_PIN 5 // Stick: 5, Brain Box: 8
+#define BTN_3_PIN 9 // Stick: 9, Brain Box: 12
+
 #define MAX_TIME_VALUE 0xFFFFFFFF
-#define COLOR_ORDER GRB
 #define MAX_EEPROM_ADDR 1023
 
 // Function prototypes
-void colorWipe(uint8_t msDelay);
-void solidColor();
 void chase(uint8_t groupSize, bool centerOrigin = false);
 void rainbow(bool sparkle = false);
 
 //////   BEN, YOU CAN CHANGE THESE TWO VALUES   //////
 const uint8_t numLEDs = 53; // The stick has 53 LEDs
 int POVSpeedDelay = 16; // Milliseconds of delay between colors
+uint8_t POV_2_DELAY = 10;
+uint8_t POV_3_DELAY = 5;
+uint8_t POV_6_DELAY = 10;
+uint16_t AUTO_INTERVAL = 5000; // Milliseconds between pattern changes in auto mode
 
 const uint8_t MAX_LEDS = 100; // DO NOT CHANGE THIS
 // IMPORTANT NOTE: numLEDs value must also be changed in the applySavedSettings() function if a change to the LED count is made
@@ -38,38 +39,41 @@ const uint16_t VERSION = 0;
 const uint8_t UNSET_EEPROM_VAL = 255; // Initial state for all EEPROM addresses
 const uint16_t HOME_ADDR = 0;
 const uint16_t BRIGHTNESS_SAVED_ADDR = 4;
-
-// TODO: Get rid of these favorite addresses, and rewrite getFavoriteAddr() in the process
-const uint16_t FAV_0_ADDR = 0;
-const uint16_t FAV_1_ADDR = 4;
-const uint16_t FAV_2_ADDR = 8;
-const uint16_t FAV_3_ADDR = 12;
-const uint16_t FAV_4_ADDR = 16;
-const uint16_t NUM_LEDS_SAVED_ADDR = 17;
-
 const uint16_t VERSION_ADDR = 1022; // Last 2 bytes of EEPROM
 
 // Colors are in GRB format
 const uint32_t COLORS[] = {
-  0x00FF00, // 0 - RED
-  0x800000, // 1 - GREEN
-  0x0000FF, // 2 - BLUE
-  0xFFFF00, // 3 - YELLOW
-  0x9900FF, // 4 - CYAN
-  0x00FFFF, // 5 - MAGENTA
-  0x004D99, // 6 - PURPLE
-  0x90FF00, // 7 - ORANGE
-  0xFF0000, // 8 - BRIGHT_GREEN
-  0xFFFFFF, // 9 - WHITE
+  CRGB::Red,        // 0
+  CRGB::Green,      // 1
+  CRGB::Blue,       // 2
+  CRGB::Yellow,     // 3
+  CRGB::Cyan,       // 4
+  CRGB::Magenta,    // 5
+  CRGB::Purple,     // 6
+  CRGB::Orange,     // 7
+  CRGB::LightGreen, // 8
+  CRGB::White       // 9
+  // 0x004D99, // Old purple
 };
-const uint8_t COLORS_POV[][2] = {{0,8},{0,2},{8,2},{0,4},{6,7},{8,7},{4,6}}; // combinations of color indexes for POV
-const uint8_t COLORS_POV3[][3] = {{0,8,2}};
+const uint8_t POV_COLOR_SETS_2[][2] = {
+  {0,1},  // Red / Green
+  {0,2},  // Red / Blue
+  {1,2},  // Green / Blue
+  {0,4},  // Red / Cyan
+  {6,7},  // Purple / Orange
+  {1,7},  // Green / Orange
+  {4,6}   // Cyan / Purple
+}; // combinations of color indexes for POV
+
+const uint8_t POV_COLOR_SETS_3[][3] = {
+  {0,1,2} // Red / Green / Blue
+};
 
 uint8_t defaultBrightness = 105; // Default is set to 50% of the brightness range
 
-uint32_t patternColumn[MAX_LEDS] = {};
+// uint32_t patternColumn[MAX_LEDS] = {};
 int selectedPatternIdx = 0; // default pattern index
-int selectedPatternColorIdx = 0; // default color index
+int selectedColorIdx = 0; // default color index
 uint8_t numPatterns = 12;
 boolean patternChanged = true;
 boolean patternComplete = false; // used when a pattern should only show once
@@ -111,7 +115,7 @@ void setup() {
   applySavedSettings();
   
   // strip = Adafruit_NeoPixel(numLEDs, DATA_PIN, NEO_GRB + NEO_KHZ800);
-  FastLED.addLeds<WS2812, DATA_PIN, COLOR_ORDER>(leds, numLEDs);
+  FastLED.addLeds<WS2812, DATA_PIN, RGB>(leds, numLEDs);
 
   // Initialize buttons
   pinMode(BTN_1_PIN, INPUT_PULLUP);
@@ -121,27 +125,11 @@ void setup() {
   FastLED.setBrightness(defaultBrightness);
 
   randomSeed(analogRead(0)); // seed random number generator for functions that need it
+
+  // TESTING
+  selectedColorIdx = 8; // TESTING
 }
 
-// Change the number of LEDs on the strip
-void changeNumLEDs(int difference) {
-  // TODO: There is a problem with this function. The method updateLength causes the stick to freeze
-  // TODO: if it's a negative difference, pulse the stick a solid color and delay briefly, since this action
-  int minNumLEDs = 5; // setting min number of pixels to 5, because their is a weird bug below 5
-  uint16_t currentNumLEDs = numLEDs;
-  uint16_t newNumLEDs = currentNumLEDs + difference;
-
-  if (newNumLEDs >= minNumLEDs && newNumLEDs <= MAX_LEDS) {
-    // strip.updateLength(newNumLEDs); // ERROR - DISABLED FOR NOW
-    showColumn();
-    
-    // Save number of LEDs to non-volatile memory
-    EEPROM.update(NUM_LEDS_SAVED_ADDR, (uint8_t)numLEDs);
-  }
-
-  // Serial.print(F("Num LEDs: "));
-  // Serial.println((String)numLEDs);
-}
 
 // Initialize EEPROM memory addresses if version number has changed
 void initEEPROM() {  
@@ -166,12 +154,14 @@ void initEEPROM() {
   }
 }
 
+
 // Set a 16-bit value in EEPROM memory
 // NOTE: 16-bit values are saved in big-endian order
 void setSaved16(uint16_t addr, uint16_t val) {  
   EEPROM.update(addr, (uint8_t)(val >> 8));
   EEPROM.update(addr + 1, (uint8_t)val);
 }
+
 
 // Get a saved 16-bit value from EEPROM memory
 // NOTE: 16-bit values are saved in big-endian order
@@ -181,6 +171,7 @@ uint16_t getSaved16(uint16_t addr) {
   }
   return ((uint16_t)EEPROM.read(addr) << 8) + EEPROM.read(addr + 1);
 }
+
 
 // TODO - Implement the EEPROM re-initialization function before re-activating this
 void applySavedSettings() {
@@ -202,9 +193,6 @@ void applySavedSettings() {
   if (EEPROM.read(BRIGHTNESS_SAVED_ADDR) != UNSET_EEPROM_VAL) {
     defaultBrightness = EEPROM.read(BRIGHTNESS_SAVED_ADDR);
   }
-
-  
-
 
   /**************
   // if favorites have not yet been saved, set them to 0
@@ -239,6 +227,7 @@ void applySavedSettings() {
   ***************/
 }
 
+
 // Save a favorite
 // TODO: This function needs to be re-written to use the new memory addresses
 void setFavorite(uint8_t i) {
@@ -254,12 +243,13 @@ void setFavorite(uint8_t i) {
   
   // EEPROM.update(patternIndex_addr, selectedPatternIdx);
   // EEPROM.update(speedDelay_addr, speedDelay);
-  // EEPROM.update(patternColorIndex_addr, selectedPatternColorIdx);
+  // EEPROM.update(patternColorIndex_addr, selectedColorIdx);
   // EEPROM.update(POVSpeedDelay_addr, POVSpeedDelay);
 
   // alertUser(COLORS[1], 2, 50, 200); // Flash stick green to alert a save
   // Serial.println("Favorite " + (String)i + " saved:");
 }
+
 
 // Get a saved favorite, and make it active
 // TODO: This function needs to be re-written to use the new memory addresses
@@ -272,7 +262,7 @@ void getFavorite(uint8_t i) {
   
   selectedPatternIdx = EEPROM.read(patternIndex_addr);
   speedDelay = EEPROM.read(speedDelay_addr);
-  selectedPatternColorIdx = EEPROM.read(patternColorIndex_addr);
+  selectedColorIdx = EEPROM.read(patternColorIndex_addr);
   POVSpeedDelay = EEPROM.read(POVSpeedDelay_addr);
   
   resetIndexesFlags();
@@ -282,6 +272,7 @@ void getFavorite(uint8_t i) {
 // Get address of favorite in EEPROM
 // fav_i - Favorite number (0 - 4)
 // attr_i - index of the favorite attribute (0 - 3)
+/*
 int getFavoriteAddr(int fav_i, int attr_i) {
   switch (fav_i) {
     case 0:
@@ -304,10 +295,13 @@ int getFavoriteAddr(int fav_i, int attr_i) {
       return FAV_0_ADDR + attr_i;
   }
 }
+*/
+
 
 void saveBrightness() {
   EEPROM.update(BRIGHTNESS_SAVED_ADDR, FastLED.getBrightness());
 }
+
 
 /**
  * Change the current pattern by modifying the selected pattern index
@@ -328,50 +322,6 @@ void changePattern(int difference) {
   Serial.println(selectedPatternIdx);
 }
 
-// Check to see if the proposed brightness setting is safe for the color
-// This prevents the board from crashing due to power overdraw
-// Note: This function is basing its maximum safe values on no more than 53 lights being lit
-uint8_t makeSafeBrightness(uint8_t brightness, uint8_t colorIdx, int difference) {
-  // TODO - this function needs to be tested, and possibly rewritten
-  bool isPOVColor = isPOVColorIndex(colorIdx);
-  uint8_t colorIterations = isPOVColor ? 2 : 1; // 2 colors for POV
-  int numColors = getNumColors();
-  uint8_t maxBrightness = 230; // 90% of 255
-  uint16_t maxColorSum = 255 + 127; // One color full brightness, and a second color at half brightness
-  uint32_t maxBrightnessProduct = ((uint32_t)maxColorSum) * ((uint32_t)maxBrightness); // Value to represent power draw needed to display this brightness
-
-  // Break the current color into its RGB values
-  // NOTE: Colors are in GRB order
-  uint8_t g, r, b;
-  uint16_t colorSum;
-  uint32_t color, brightnessProduct;
-
-  // If POV color, check both colors to make sure they are safe
-  for (uint8_t c = 0; c < colorIterations; c++) {
-    color = isPOVColor ? COLORS[ COLORS_POV[colorIdx - numColors][c] ] : COLORS[colorIdx];
-    g = color >> 16;
-    r = color >> 8;
-    b = color;
-    colorSum = g + r + b;
-
-    brightnessProduct = ((uint32_t)brightness) * ((uint32_t)colorSum);
-
-    // Change brightness to safe value if needed
-    if (brightnessProduct > maxBrightnessProduct) {
-
-      // If brightness is greater than the max safe brightness, update the brightness value
-      if (brightness > maxBrightnessProduct / colorSum) {
-        brightness = maxBrightnessProduct / colorSum;
-
-        // Alert user if the user was actually trying to change the brightness, rather than changing patterns or colors
-        if (difference != 0) {
-          alertUser(COLORS[0], 2, 50, 200);
-        }
-      }
-    }
-  }
-  return brightness;
-}
 
 // difference is the amount by which you would like to change the brightness
 // (e.g. -5 = darker, 5 = brighter)
@@ -394,23 +344,20 @@ void changeBrightness(int difference) {
   // change the brightness level
   if (newBrightness < minBrightness) {
     newBrightness = minBrightness;
-    // Serial.println("Here");
     alertUser(COLORS[0], 2, 50, 200);
   } else if (newBrightness > maxBrightness) {
     newBrightness = maxBrightness;
-    // Serial.println("There");
     alertUser(COLORS[0], 2, 50, 200);
   }
 
-  // newBrightness = makeSafeBrightness(newBrightness, selectedPatternColorIdx, difference);
-
-  // Serial.print(F("Brightness: "));
-  // Serial.println((String)newBrightness);
-
   FastLED.setBrightness((uint8_t)newBrightness);
-  showColumn();
+  FastLED.show();
+  FastLED.delay(speedDelay);
 }
 
+
+// TODO: Rewrite speed changing functions
+/*
 void changeSpeed(int difference) {
   // If currently on colorWipe or sixColorPOV, change POV speed; otherwise, change animation speed
   if (selectedPatternIdx == 1 || selectedPatternIdx == 2) {
@@ -431,10 +378,9 @@ void changePOVSpeed(int difference) {
   }
 
   POVSpeedDelay = newPOVSpeed;
-
-  // Serial.print(F("POV Speed Delay: "));
-  // Serial.println((String)POVSpeedDelay);
 }
+*/
+
 
 // Change animation speed
 void changeAnimationSpeed(int difference) {
@@ -447,12 +393,9 @@ void changeAnimationSpeed(int difference) {
     newAnimationSpeed = maxSpeedDelay;
     alertUser(COLORS[0], 2, 50, 200);
   }
-
   speedDelay = newAnimationSpeed;
-
-  // Serial.print(F("Animation Speed Delay: "));
-  // Serial.println((String)speedDelay);
 }
+
 
 // Change direction of pattern
 void changeDirection() {
@@ -466,105 +409,93 @@ void changeDirection() {
   // Serial.println(F("Pattern direction changed"));
 }
 
+
 // Change color of pattern if it can be manually changed
 void changeColor(int colorIndexModifier) {
   int numColors = getNumColors();
-  int numPOVColors = getNumPOVColors();
-  int numPOV3Colors = getNumPOV3Colors();
+  int numPOVColors = getNumPov2Sets();
+  int numPOV3Colors = getNumPov3Sets();
   int totalNumColors = numColors + numPOVColors + numPOV3Colors;
-  selectedPatternColorIdx += colorIndexModifier;
+  selectedColorIdx += colorIndexModifier;
 
   // Wrap around pattern color indexes
-  if (selectedPatternColorIdx < 0) {
-    selectedPatternColorIdx = totalNumColors - 1;
-  } else if (selectedPatternColorIdx >= totalNumColors) {
-    selectedPatternColorIdx = 0;
+  if (selectedColorIdx < 0) {
+    selectedColorIdx = totalNumColors - 1;
+  } else if (selectedColorIdx >= totalNumColors) {
+    selectedColorIdx = 0;
   }
 
-  // Serial.println("Color_i: " + (String)selectedPatternColorIdx);
+  // Serial.println("Color_i: " + (String)selectedColorIdx);
 
   changeBrightness(0); // Changing brightness by 0 so that we can make sure the brightness is safe for the new pattern
   resetIndexesFlags();
 }
 
-// Returns TRUE if the selected pattern color index is one of the POV color indexes, else returns FALSE
-bool isPOVColorIndex(int idx) {
-  int numColors = sizeof(COLORS) / sizeof(*COLORS);
-  int numPOVColors = sizeof(COLORS_POV) / sizeof(*COLORS_POV);
-
-  if (idx >= numColors && (idx < numColors + numPOVColors)) {
-    return true;
-  } else {
-    return false;
-  }
-}
-
-// Returns TRUE if the selected pattern color index is one of the POV color indexes, else returns FALSE
-bool isPOV3ColorIndex(int idx) {
-  int numColors = sizeof(COLORS) / sizeof(*COLORS);
-  int numPOVColors = sizeof(COLORS_POV) / sizeof(*COLORS_POV);
-  return (idx >= (numColors + numPOVColors)) ? true : false;
-}
 
 // Returns the number of colors in the COLORS array
-// TODO: change return type to uint8_t
-int getNumColors() {
+uint8_t getNumColors() {
   return sizeof(COLORS) / sizeof(*COLORS);
 }
 
-// Returns the number of POV colors in the COLORS_POV array
-uint8_t getNumPOVColors() {
-  return sizeof(COLORS_POV) / sizeof(*COLORS_POV);
+
+// Returns the number of POV2 color sets in the POV_COLOR_SETS_2 array
+uint8_t getNumPov2Sets() {
+  return sizeof(POV_COLOR_SETS_2) / sizeof(*POV_COLOR_SETS_2);
 }
 
-// Returns the number of POV3 colors in the COLORS_POV3 array
-uint8_t getNumPOV3Colors() {
-  return sizeof(COLORS_POV3) / sizeof(*COLORS_POV3);
+
+// Returns the number of POV3 color sets in the POV_COLOR_SETS_3 array
+uint8_t getNumPov3Sets() {
+  return sizeof(POV_COLOR_SETS_3) / sizeof(*POV_COLOR_SETS_3);
 }
 
-int getNumColorsInPOV(int colorIdx) {
-  int numColors = sizeof(COLORS) / sizeof(*COLORS);
-  int numPOVColors = sizeof(COLORS_POV) / sizeof(*COLORS_POV);
-  int numPOV3Colors = sizeof(COLORS_POV3) / sizeof(*COLORS_POV3);
 
-  if (colorIdx >= numColors) {
-    if (colorIdx >= numColors + numPOVColors) {
-      return 3;
-    } else {
-      return 2;
-    }
+// Returns the total number of color sets
+uint8_t getNumColorSets() {
+  return getNumColors() + getNumPov2Sets() + getNumPov3Sets();
+}
+
+
+// Get the number of colors in the selected color set
+// NOTE: if more than 1 color, it is a POV color set
+uint8_t getNumColorsInSet(uint8_t colorIdx) {
+  uint8_t numColors = getNumColors();
+  uint8_t numPov2Sets = getNumPov2Sets();
+
+  if (colorIdx >= numColors + numPov2Sets) {
+    return 3;
+  } else if (colorIdx >= numColors) {
+    return 2;
   } else {
     return 1;
   }
 }
 
-// Set the all pixels on the strip to the values in the patternColumn array
-// and then show the pixels
-void showColumn() {
-  for (int i=0; i < numLEDs; i++) {
-    leds[i] = patternColumn[i];
-    // strip.setPixelColor(i, patternColumn[i]);
+
+// Get the index of a selected POV color within its own color set array
+uint8_t getPovColorIdx(uint8_t colorIdx, uint8_t numColorsInSet) {
+  uint8_t numColors = getNumColors();
+  uint8_t numPov2Sets = getNumPov2Sets();
+
+  if (numColorsInSet == 3) {
+    return colorIdx - numPov2Sets - numColors;
+  } else if (numColorsInSet == 2) {
+    return colorIdx - numColors;
   }
-  
-  FastLED.show();
-//  debugPatternColumn();
-  
-  FastLED.delay(speedDelay);
 }
 
-/*
-void debugPatternColumn() {
-  String litPixels = "";
-  for (int i=0; i < numLEDs; i++) {
-    if (patternColumn[i] == BLACK) {
-      litPixels += "0";
-    } else {
-      litPixels += "1";
-    }
+
+// Delay to be inserted between colors in POV sets
+void delayPov(uint8_t numColorsInSet) {
+  if (numColorsInSet == 2) {
+    FastLED.delay(POV_2_DELAY);
+  } else if (numColorsInSet == 3) {
+    FastLED.delay(POV_3_DELAY);
+  } else if (numColorsInSet == 6) {
+    FastLED.delay(POV_6_DELAY);
   }
-  Serial.println(litPixels);
 }
-*/
+
 
 // Show the pattern that is currently selected
 void showPattern() {  
@@ -576,11 +507,10 @@ void showPattern() {
       rainbow();
       break;
     case 1:
-      speedDelay = 0; // This pattern resets animation delay
       sixColorPOV();
       break;
     case 2:
-      colorWipe(5);
+      colorWipe();
       break;
     case 3:
       stackingAnimation();
@@ -588,7 +518,7 @@ void showPattern() {
     case 4:
       // Skipping this pattern until it is fixed
       // breatheAnimation();
-      solidColor();
+      colorWipe();
       break;
     case 5:
       twinkle();
@@ -609,76 +539,58 @@ void showPattern() {
       pong(10);
       break;
     case 11:
-      speedDelay = 12; // TODO: Remove This - I was testing with a slower speed
       rainbow(true);
       break;
   }
 }
+
 
 // Set all pixels to black, so very little power is used
 void patternOff() {
   setAllPixels(0); // Set to BLACK
 }
 
+
 // 6-color POV
+// NOTE: This pattern returns after each color is flashed, so we don't spend
+// too much time in this function due to POV delays.
 void sixColorPOV() {  
   int colorIndexes[] = {2,1,0,6,7,3};
-  int numColors = sizeof(colorIndexes) / sizeof(*colorIndexes);
+  int numColorsInSet = sizeof(colorIndexes) / sizeof(*colorIndexes);
 
-  // Make sure brightness is set to a safe value for all colors in this pattern
-  // ONLY run this once when changing to the pattern
-  uint8_t maxBrightness = 230; // 90% of 255
-  uint8_t colorSetMaxBrightness = maxBrightness;
-  uint8_t tempBrightness;
-  uint8_t currentBrightness = FastLED.getBrightness();
-  if (patternChanged) {
-    for (int c=0; c < numColors; c++) {
-      tempBrightness = makeSafeBrightness(colorSetMaxBrightness, colorIndexes[c], 0);
-      if (tempBrightness < colorSetMaxBrightness) {
-        colorSetMaxBrightness = tempBrightness;
-      }
-    }
-
-    if (colorSetMaxBrightness < currentBrightness) {
-      FastLED.setBrightness(colorSetMaxBrightness);
-      showColumn();
-      // Serial.print(F("Brightness changed: "));
-      // Serial.println(colorSetMaxBrightness);
-    }
+  for (uint8_t i=0; i < numLEDs; i++) {
+    leds[i] = COLORS[colorIndexes[pat_i_0]];
   }
-
-  for (uint8_t j=0; j < numLEDs; j++) {
-    patternColumn[j] = COLORS[colorIndexes[pat_i_0]];
-  }
-  showColumn();
-
-  FastLED.delay(POVSpeedDelay);
+  FastLED.show();
+  delayPov(numColorsInSet);
 
   // Increment color index (loop index to beginning)
-  pat_i_0 = (pat_i_0 < numColors - 1) ? pat_i_0 + 1 : 0;
+  pat_i_0 = (pat_i_0 < numColorsInSet - 1) ? pat_i_0 + 1 : 0;
 }
 
+
 // Display a solid color
+/*
 void solidColor() {
   int numColors = getNumColors();
-  int numPOVColors = getNumPOVColors();
-  bool isPOVColor = isPOVColorIndex(selectedPatternColorIdx);
-  bool isPOV3Color = isPOV3ColorIndex(selectedPatternColorIdx);
-  int colorIterations = getNumColorsInPOV(selectedPatternColorIdx);
+  int numPOVColors = getNumPov2Sets();
+  bool isPOVColor = isPOVColorIndex(selectedColorIdx);
+  bool isPOV3Color = isPOV3ColorIndex(selectedColorIdx);
+  int colorIterations = getNumColorsInPOV(selectedColorIdx);
   uint32_t color;
 
   for (int c=0; c < colorIterations; c++) {
     // Get the color
     if (isPOVColor) {
-      color = COLORS[ COLORS_POV[selectedPatternColorIdx - numColors][c] ];
+      color = COLORS[ POV_COLOR_SETS_2[selectedColorIdx - numColors][c] ];
     } else if (isPOV3Color) {
-      color = COLORS[ COLORS_POV3[selectedPatternColorIdx - numColors - numPOVColors][c] ];
+      color = COLORS[ POV_COLOR_SETS_3[selectedColorIdx - numColors - numPOVColors][c] ];
     } else {
-      color = COLORS[selectedPatternColorIdx];
+      color = COLORS[selectedColorIdx];
     }
 
     for (uint8_t i=0; i < numLEDs; i++) {
-      patternColumn[i] = color;
+      leds[i] = color;
     }
 
     // Insert POV delay if POV color
@@ -686,96 +598,100 @@ void solidColor() {
       FastLED.delay(POVSpeedDelay);
     }
 
-    showColumn();    
+    FastLED.show();
+    FastLED.delay(speedDelay);
   }
 }
+*/
+
 
 // Color Wipe
-void colorWipe(uint8_t msDelay) {
-  // TODO: after switching patterns several times, this pattern gets stuck at the beginning of its animation
-  int numColors = getNumColors();
-  int numPOVColors = getNumPOVColors();
-  bool isPOVColor = isPOVColorIndex(selectedPatternColorIdx);
-  bool isPOV3Color = isPOV3ColorIndex(selectedPatternColorIdx);
-  int colorIterations = getNumColorsInPOV(selectedPatternColorIdx);
+void colorWipe() {
+  uint8_t numColorsInSet = getNumColorsInSet(selectedColorIdx);
   uint32_t color;
 
-  for (int c=0; c < colorIterations; c++) {
-    // Get the color
-    if (isPOVColor) {
-      color = COLORS[ COLORS_POV[selectedPatternColorIdx - numColors][c] ];
-    } else if (isPOV3Color) {
-      color = COLORS[ COLORS_POV3[selectedPatternColorIdx - numColors - numPOVColors][c] ];
+  for (uint8_t color_i = 0; color_i < numColorsInSet; color_i++) {
+    if (numColorsInSet == 3) {
+      color = COLORS[ POV_COLOR_SETS_3[getPovColorIdx(selectedColorIdx, numColorsInSet)][color_i] ];
+    } else if (numColorsInSet == 2) {
+      color = COLORS[ POV_COLOR_SETS_2[getPovColorIdx(selectedColorIdx, numColorsInSet)][color_i] ];
     } else {
-      color = COLORS[selectedPatternColorIdx];
+      color = COLORS[selectedColorIdx];
     }
 
     for (uint8_t i=0; i <= pat_i_0; i++) {
-      patternColumn[i] = color;
+      leds[i] = color;
     }
-
-    // Insert POV delay if POV color
-    if (isPOVColor || isPOV3Color) {
-      FastLED.delay(POVSpeedDelay);
-    }
-
-    showColumn();
+    FastLED.show();
+    delayPov(numColorsInSet);
   }
 
   if (!patternComplete) {
     pat_i_0++; // increase pattern index
     
     // Check to see if pattern is complete
-    // TODO: shouldn't this be comparing against (numLEDs - 1)?
-    if (pat_i_0 == numLEDs) {
+    if (pat_i_0 == numLEDs - 1) {
       patternComplete = true;
     }
-    FastLED.delay(msDelay); // delay to slow down the pattern animation
+    FastLED.delay(speedDelay);
   }
 }
+
 
 // Loop through all color wipes
 void colorWipeLoop() {
   // pat_i_0 is the index of the pixel we are currently filling up to for the animation (aka animation index)
   // pat_i_1 is the color index
-  bool isPOVColor = isPOVColorIndex(pat_i_1);
-  bool isPOV3Color = isPOV3ColorIndex(pat_i_1);
-  uint8_t colorIterations = isPOV3Color ? 3 : 2; // 2 or 3 colors for POV - Also doing solid colors for 2 iterations to keep the animation timing in sync
+  uint8_t colorIdx = pat_i_1; // Copying to descriptive variable name for clarity
+  uint8_t numColorsInSet = getNumColorsInSet(colorIdx);
   uint32_t color;
-  int numColors = getNumColors();
-  int numPOVColors = getNumPOVColors();
-  int numPOV3Colors = getNumPOV3Colors();
-  int totalNumColors = numColors + numPOVColors + numPOV3Colors;
-  uint16_t numPixels = numLEDs;
-
-  for (int c=0; c < colorIterations; c++) {
-    // Get the color
-    if (isPOVColor) {
-      color = COLORS[ COLORS_POV[pat_i_1 - numColors][c] ];
-    } else if (isPOV3Color) {
-      color = COLORS[ COLORS_POV3[pat_i_1 - numColors - numPOVColors][c] ];
+  
+  for (uint8_t color_i = 0; color_i < numColorsInSet; color_i++) {
+    if (numColorsInSet == 3) {
+      color = COLORS[ POV_COLOR_SETS_3[getPovColorIdx(colorIdx, numColorsInSet)][color_i] ];
+    } else if (numColorsInSet == 2) {
+      color = COLORS[ POV_COLOR_SETS_2[getPovColorIdx(colorIdx, numColorsInSet)][color_i] ];
     } else {
-      color = COLORS[pat_i_1];
+      color = COLORS[selectedColorIdx];
     }
 
-    // Light the pixels
-    if (patDirection == 0) {
-      for (uint16_t pixel_i=0; pixel_i <= pat_i_0; pixel_i++) {
-        patternColumn[pixel_i] = color;
-      }
-    } else {
-      for (int pixel_i = numPixels - 1; pixel_i >= pat_i_0; pixel_i--) {
-        patternColumn[pixel_i] = color;
-      }
+    for (uint8_t i=0; i <= pat_i_0; i++) {
+      leds[i] = color;
     }
 
-    // Insert POV delay
-    FastLED.delay(POVSpeedDelay);
-    
-    showColumn();
+    FastLED.show();
+    delayPov(numColorsInSet);
   }
 
+  FastLED.delay(speedDelay);
+  
   bool animationComplete = false;
+  // Check to see if the pattern animation is now complete
+  if (pat_i_0 == numLEDs - 1) {
+    animationComplete = true;
+    pat_i_0 = 0; // reset animation index
+  } else {
+    pat_i_0++;
+  }
+
+  if (animationComplete) {
+    // Advance the color index
+    // Loop back to the first color if we reached the last color, else, increment color index
+    pat_i_1 = (pat_i_1 == getNumColorSets() - 1) ? 0 : pat_i_1 + 1;
+  }
+
+  /* DISABLED PATTERN DIRECTION FEATURE - OLD CODE
+  // Light the pixels
+  if (patDirection == 0) {
+    for (uint16_t pixel_i=0; pixel_i <= pat_i_0; pixel_i++) {
+      leds[pixel_i] = color;
+    }
+  } else {
+    for (int pixel_i = numPixels - 1; pixel_i >= pat_i_0; pixel_i--) {
+      leds[pixel_i] = color;
+    }
+  }
+
   // Check to see if the pattern animation is now complete
   if (patDirection == 0) {
     if (pat_i_0 == numPixels - 1) {
@@ -792,13 +708,9 @@ void colorWipeLoop() {
       pat_i_0--;
     }
   }
-
-  if (animationComplete) {
-    // Advance the color index
-    // Loop back to the first color if we reached the last color, else, increment color index
-    pat_i_1 = (pat_i_1 == totalNumColors - 1) ? 0 : pat_i_1 + 1;
-  }
+  */
 }
+
 
 // Fade full stick through all colors (one solid color at a time)
 void colorFade() {
@@ -837,10 +749,11 @@ void colorFade() {
   gapColor = gapColor | (((uint32_t)(gapColor_R)) << 8);
   gapColor = gapColor | ((uint32_t)(gapColor_B));
 
-  for (int pixel_i=0; pixel_i <= numPixels; pixel_i++) {
-    patternColumn[pixel_i] = gapColor;
+  for (int pixel_i=0; pixel_i < numPixels; pixel_i++) {
+    leds[pixel_i] = gapColor;
   }
-  showColumn();
+  FastLED.show();
+  FastLED.delay(speedDelay);
 
   if (pat_i_1 < steps - 1) {
     pat_i_1++;
@@ -850,17 +763,19 @@ void colorFade() {
   }
 }
 
+
 /* // NOTE: This rainbow method has a weird color bug while changing brightness
 void newRainbow() {
   uint8_t deltaHue = 5; // the larger this number is, the smaller the color groupings
   
-  EVERY_N_MILLISECONDS(5) { baseHue++; }; // Using FastLED macro function to perform an action at a certain time interval
+  
 
   // FastLED's built-in rainbow generator
   fill_rainbow(leds, numLEDs, baseHue, deltaHue);
   FastLED.show();
 }
 */
+
 
 // Rainbow
 void rainbow(bool sparkle) {  
@@ -876,7 +791,7 @@ void rainbow(bool sparkle) {
   }
   while (pat_i_0 < 256) {
     while (pat_i_1 < pat_i_1_max) {
-      patternColumn[pat_i_1] = Wheel(((pat_i_1 * 256 / numLEDs) + pat_i_0) & 255);
+      leds[pat_i_1] = Wheel(((pat_i_1 * 256 / numLEDs) + pat_i_0) & 255);
       pat_i_1++;
     }
     pat_i_0++;
@@ -886,60 +801,52 @@ void rainbow(bool sparkle) {
       addSparkle(20);
     }
 
-    showColumn();
+    FastLED.show();
+    FastLED.delay(speedDelay);
     return;
   }
 }
 
+
+// Set a random LED in the pattern to white
 void addSparkle(fract8 chanceOfSparkle) {
   uint8_t sparklePos;
   if(random8() < chanceOfSparkle) {
     sparklePos = random8(numLEDs - 2);
-    // patternColumn[sparklePos - 1] = CRGB::White;
-    patternColumn[sparklePos] = CRGB::White;
-    patternColumn[sparklePos + 1] = CRGB::White;
+    leds[sparklePos] = CRGB::White;
+    leds[sparklePos + 1] = CRGB::White;
   }
 }
 
+
 // Group of pixels bounce off both ends of stick
 void pong(uint8_t groupSize) {
+  uint8_t numColorsInSet = getNumColorsInSet(selectedColorIdx);
   uint32_t color;
-  int numPixels = numLEDs;
-  int numColors = getNumColors();
-  int numPOVColors = getNumPOVColors();
-  bool isPOVColor = isPOVColorIndex(selectedPatternColorIdx);
-  bool isPOV3Color = isPOV3ColorIndex(selectedPatternColorIdx);
-  int colorIterations = getNumColorsInPOV(selectedPatternColorIdx);
 
-  for (int c=0; c < colorIterations; c++) {
-    // Get the color
-    if (isPOVColor) {
-      color = COLORS[ COLORS_POV[selectedPatternColorIdx - numColors][c] ];
-    } else if (isPOV3Color) {
-      color = COLORS[ COLORS_POV3[selectedPatternColorIdx - numColors - numPOVColors][c] ];
+  for (uint8_t color_i = 0; color_i < numColorsInSet; color_i++) {
+    if (numColorsInSet == 3) {
+      color = COLORS[ POV_COLOR_SETS_3[getPovColorIdx(selectedColorIdx, numColorsInSet)][color_i] ];
+    } else if (numColorsInSet == 2) {
+      color = COLORS[ POV_COLOR_SETS_2[getPovColorIdx(selectedColorIdx, numColorsInSet)][color_i] ];
     } else {
-      color = COLORS[selectedPatternColorIdx];
+      color = COLORS[selectedColorIdx];
     }
 
-    for (int pixel_i=0; pixel_i < numPixels; pixel_i++) {
+    for (uint8_t pixel_i=0; pixel_i < numLEDs; pixel_i++) {
       if ((pixel_i >= pat_i_0) && (pixel_i < pat_i_0 + groupSize)) {
-        patternColumn[pixel_i] = color;
-        // Serial.print(F("1"));
+        leds[pixel_i] = color;
       } else {
-        patternColumn[pixel_i] = 0;
-        // Serial.print(F("0"));
+        leds[pixel_i] = 0;
       }      
     }
-    showColumn();
-
-    // Insert POV delay if POV color
-    if (isPOVColor || isPOV3Color) {
-      FastLED.delay(POVSpeedDelay);
-    }
+    FastLED.show();
+    delayPov(numColorsInSet); // Inserts delay if selected color set is POV
   }
 
+  // Reverse direction of traveling pixel group when group gets to the end of the LED strip
   if (!patternReverse) {
-    if (pat_i_0 == numPixels - groupSize) {
+    if (pat_i_0 == numLEDs - groupSize) {
       patternReverse = true;
       pat_i_0--;
     } else {
@@ -952,318 +859,182 @@ void pong(uint8_t groupSize) {
     } else {
       pat_i_0--;
     }
-  }
-  
+  }  
 }
 
-void chase(uint8_t groupSize, bool centerOrigin) {
-  uint32_t color;
-  int numPixels = numLEDs;
-  int numColors = getNumColors();
-  int numPOVColors = getNumPOVColors();
-  bool isPOVColor = isPOVColorIndex(selectedPatternColorIdx);
-  bool isPOV3Color = isPOV3ColorIndex(selectedPatternColorIdx);
-  int colorIterations = getNumColorsInPOV(selectedPatternColorIdx);
-  int offsetIdx;
 
+void chase(uint8_t groupSize, bool centerOrigin) {
+  uint8_t numColorsInSet = getNumColorsInSet(selectedColorIdx);
+  uint32_t color;
+  int offsetIdx;  // must be signed int
+  int numLEDs_int = numLEDs; // must be signed int
+
+  // TODO: Re-activate pattern direction change code below
+  /*****
+  // Pattern direction change code
   // If pattern direction is reversed, initialize iterator to last pixel index
   if (patternChanged && (patDirection == 1)) {
     patternChanged = false;
     pat_i_0 = numPixels;
   }
+  *****/
 
-  for (int c=0; c < colorIterations; c++) {
-    // Get the color
-    if (isPOVColor) {
-      color = COLORS[ COLORS_POV[selectedPatternColorIdx - numColors][c] ];
-    } else if (isPOV3Color) {
-      color = COLORS[ COLORS_POV3[selectedPatternColorIdx - numColors - numPOVColors][c] ];
+  for (uint8_t color_i = 0; color_i < numColorsInSet; color_i++) {
+    if (numColorsInSet == 3) {
+      color = COLORS[ POV_COLOR_SETS_3[getPovColorIdx(selectedColorIdx, numColorsInSet)][color_i] ];
+    } else if (numColorsInSet == 2) {
+      color = COLORS[ POV_COLOR_SETS_2[getPovColorIdx(selectedColorIdx, numColorsInSet)][color_i] ];
     } else {
-      color = COLORS[selectedPatternColorIdx];
+      color = COLORS[selectedColorIdx];
     }
 
     offsetIdx = pat_i_0;
 
-    // Serial.println(F("pixel_i  pat_i_0  offsetIdx"));
-    // Serial.println("offset_" + (String)offsetIdx + " ");
-
-    for (int pixel_i=0; pixel_i < numPixels; pixel_i++) {
-      
-      // This causes the chasing animation to originate from the center of the stick
+    for (int pixel_i=0; pixel_i < numLEDs_int; pixel_i++) {
+      // Reverse direction of animation half way down the light strip
       if (centerOrigin) {
-        // Reverse direction of animation half way down the light strip
-        if (pixel_i > (numPixels / 2 - 1)) {
+        if (pixel_i > (numLEDs_int / 2 - 1)) {
           offsetIdx = pat_i_0 * -1;
         }
       }
 
-      // Serial.print((String)pixel_i + "       ");
-      // Serial.print((String)pat_i_0 + "       ");
-      // Serial.println((String)offsetIdx);
-    
-      // Serial.print((String)((pixel_i + offsetIdx) % (groupSize * 2)) + "  ");
       if (abs((pixel_i + offsetIdx) % (groupSize * 2)) < groupSize) {
-        patternColumn[pixel_i] = color;
-        // Serial.print(F("1 "));
+        leds[pixel_i] = color;
       } else {
-        patternColumn[pixel_i] = 0;
-        // Serial.print(F("0 "));
+        leds[pixel_i] = 0;
       }
     }
-    showColumn();
 
-    // Insert POV delay if POV color
-    if (isPOVColor || isPOV3Color) {
-      FastLED.delay(POVSpeedDelay);
-    }
-    // Serial.println("");
+    FastLED.show();
+    delayPov(numColorsInSet); // Inserts delay if selected color set is POV
   }
 
-  if (!isPOVColor && !isPOV3Color) {
-    FastLED.delay(10);
-  }
+  // FastLED.delay(speedDelay);
 
   // Increment offset iterator and wraparound
+  pat_i_0 = (pat_i_0 < numLEDs_int - 1) ? (pat_i_0 + 1) : 0;
+
+  // TODO: Re-activate pattern direction change code below
+  /****
+  // Pattern direction change code
   if (patDirection == 0) {
-    pat_i_0 = (pat_i_0 <= numPixels) ? (pat_i_0 + 1) : 0;
+    pat_i_0 = (pat_i_0 < numLEDs_int - 1) ? (pat_i_0 + 1) : 0;
   } else {
-    pat_i_0 = (pat_i_0 >= 0) ? (pat_i_0 - 1) : (numPixels);
+    pat_i_0 = (pat_i_0 >= 0) ? (pat_i_0 - 1) : (numLEDs_int);
   }
+  ****/
 }
+
 
 // Stacking animation
 void stackingAnimation() {
-  // TODO: after switching patterns several times, this pattern gets stuck at the beginning of its animation
-  int numColors = getNumColors();
-  bool isPOVColor = isPOVColorIndex(selectedPatternColorIdx);
-  int colorIterations = isPOVColor ? 2 : 1; // 2 colors for POV
-  int numPixels = numLEDs;
+  uint8_t numColorsInSet = getNumColorsInSet(selectedColorIdx);
   uint32_t color;
   uint8_t travelGroupSize = 3;
 
-  // pat_i_0 is the last pixel in the traveling range
-  // pat_i_1 is
-
-  // Serial.println("i_0: " + (String)pat_i_0);
-  // Serial.println("i_1: " + (String)pat_i_1);
-
-  if (patDirection == 0) {
-    // Reset indexes when needed
-    if (pat_i_0 == 0) {
-      pat_i_0 = numPixels - 1;
-    }
-    if (pat_i_1 == pat_i_0) {
-      pat_i_0 = (pat_i_0 - travelGroupSize > 0) ? pat_i_0 - travelGroupSize : 0;
-      pat_i_1 = 0;
-    }
-
-    for (int c=0; c < colorIterations; c++) {
-      // Get the color
-      color = isPOVColor ? COLORS[ COLORS_POV[selectedPatternColorIdx - numColors][c] ] : COLORS[selectedPatternColorIdx];
-
-      // Serial.println(F("travel_i: "));
-
-      // Make 3 pixels travel down the stick
-      for (int travel_i = 2; travel_i < pat_i_0; travel_i++) {
-        if (travel_i == pat_i_1 || travel_i == pat_i_1 - 1 || travel_i == pat_i_1 - 2) {
-          patternColumn[travel_i - 2] = color;
-          patternColumn[travel_i - 1] = color;
-          patternColumn[travel_i] = color;
-          // Serial.print(F("1"));
-        } else {
-          patternColumn[travel_i] = 0; // BLACK
-          // Serial.print(F("0"));
-        }
-      }
-    
-      // Turn on the lit pixels
-      for (int lit_i = pat_i_0; lit_i < numPixels; lit_i++) {
-        patternColumn[lit_i] = color;
-        // Serial.print(F("1"));
-      }
-
-      // Serial.println("");
-      
-      // Insert POV delay if POV color
-      if (isPOVColor) {
-        FastLED.delay(POVSpeedDelay);
-      }
-
-      showColumn();
-    }
-
-    pat_i_1++;
-  } else {
-    // Reset indexes when needed
-    if (patternChanged) {
-      // Initialize this index when this when the pattern is first changed
-      pat_i_1 = numPixels - 1;
-      patternChanged = false;
-    }
-    if (pat_i_0 == numPixels - 1) {
-      pat_i_0 = 0; // reset to 1 instead of 0 because of base case problem
-    }
-    if (pat_i_1 == pat_i_0) {
-      // pat_i_0++;
-      pat_i_0 = (pat_i_0 + travelGroupSize <= numPixels - 1) ? pat_i_0 + travelGroupSize : numPixels - 1;
-      pat_i_1 = numPixels - 1;
-    }
-  
-    for (int c=0; c < colorIterations; c++) {
-      // Get the color
-      color = isPOVColor ? COLORS[ COLORS_POV[selectedPatternColorIdx - numColors][c] ] : COLORS[selectedPatternColorIdx];
-
-      // Serial.println(F("travel_i: "));
-
-      // Make a single pixel travel down the stick
-      for (int travel_i = numPixels - 1; travel_i > pat_i_0 + 2; travel_i--) {
-        if (travel_i == pat_i_1 || travel_i == pat_i_1 + 1 || travel_i == pat_i_1 + 2) {
-          patternColumn[travel_i + 2] = color;
-          patternColumn[travel_i + 1] = color;
-          patternColumn[travel_i] = color;
-
-          // Serial.print(F("1"));
-        } else {
-          patternColumn[travel_i] = 0; // BLACK
-
-          // Serial.print(F("0"));
-        }
-      }
-    
-      // Turn on the lit pixels
-      for (int lit_i = pat_i_0; lit_i >= 0; lit_i--) {
-        patternColumn[lit_i] = color;
-
-        // Serial.print(F("1"));
-      }
-
-      // Serial.println("");
-      
-      // Insert POV delay if POV color
-      if (isPOVColor) {
-        FastLED.delay(POVSpeedDelay);
-      }
-
-      showColumn();
-    }
-
-    pat_i_1--;
+  // Reset indexes when needed
+  if (pat_i_0 == 0) {
+    pat_i_0 = numLEDs - 1;
   }
-}
+  if (pat_i_1 == pat_i_0) {
+    pat_i_0 = (pat_i_0 - travelGroupSize > 0) ? pat_i_0 - travelGroupSize : 0;
+    pat_i_1 = 0;
+  }
 
-// Breathe Animation
-void breatheAnimation() {
-  // TODO: Fix this pattern. It is causing the stick to get stuck sometimes, and also messing up the brightness when you go to another pattern
-  // NOTE: In order to change the top-end brightness of this pattern, user
-  // must switch to a different pattern, change the brightness, and then switch back.
+  for (uint8_t color_i = 0; color_i < numColorsInSet; color_i++) {
+    if (numColorsInSet == 3) {
+      color = COLORS[ POV_COLOR_SETS_3[getPovColorIdx(selectedColorIdx, numColorsInSet)][color_i] ];
+    } else if (numColorsInSet == 2) {
+      color = COLORS[ POV_COLOR_SETS_2[getPovColorIdx(selectedColorIdx, numColorsInSet)][color_i] ];
+    } else {
+      color = COLORS[selectedColorIdx];
+    }
 
-  int numColors = getNumColors();
-  bool isPOVColor = isPOVColorIndex(selectedPatternColorIdx);
-  int colorIterations = isPOVColor ? 2 : 1; // 2 colors for POV
-  uint32_t color;
+    // Make 3 pixels travel down the stick
+    for (int travel_i = 2; travel_i < pat_i_0; travel_i++) {
+      if (travel_i == pat_i_1 || travel_i == pat_i_1 - 1 || travel_i == pat_i_1 - 2) {
+        leds[travel_i - 2] = color;
+        leds[travel_i - 1] = color;
+        leds[travel_i] = color;
+      } else {
+        leds[travel_i] = 0; // OFF
+      }
+    }
 
-  uint8_t minPatternBrightness = 10;
-  int numRepeats = 4;
-  
-  // Loop the brightness from minBrightness up to the brightness
-  // setting the user has set.
-  // Initialize brightness
+    // Turn on the lit pixels
+    for (int lit_i = pat_i_0; lit_i < numLEDs; lit_i++) {
+      leds[lit_i] = color;
+    }
+
+    FastLED.show();
+    delayPov(numColorsInSet); // Inserts delay if selected color set is POV
+  }
+
+  pat_i_1++;
+
+  // TODO: Maybe re-activate this reversed pattern direction
+/*******
+  // START Reversed pattern direction
+  // Reset indexes when needed
   if (patternChanged) {
-    pat_i_0 = FastLED.getBrightness(); // pat_i_0 is the max brightness
-    pat_i_1 = pat_i_0;
+    // Initialize this index when this when the pattern is first changed
+    pat_i_1 = numLEDs - 1;
     patternChanged = false;
-    patternStartingBrightness = pat_i_0;
-
-    // Serial.print(F("Max breathe brightness: "));
-    // Serial.println(pat_i_0);
+  }
+  if (pat_i_0 == numLEDs - 1) {
+    pat_i_0 = 0; // reset to 1 instead of 0 because of base case problem
+  }
+  if (pat_i_1 == pat_i_0) {
+    pat_i_0 = (pat_i_0 + travelGroupSize <= numLEDs - 1) ? pat_i_0 + travelGroupSize : numLEDs - 1;
+    pat_i_1 = numLEDs - 1;
   }
 
   for (int c=0; c < colorIterations; c++) {
     // Get the color
-    color = isPOVColor ? COLORS[ COLORS_POV[selectedPatternColorIdx - numColors][c] ] : COLORS[selectedPatternColorIdx];
-    
-    // Light the pixels
-    for (int i = 0; i < numLEDs; i++) {
-      patternColumn[i] = color;
-    }
-    FastLED.setBrightness(pat_i_1);
+    color = isPOVColor ? COLORS[ POV_COLOR_SETS_2[selectedColorIdx - numColors][c] ] : COLORS[selectedColorIdx];
 
-    // Insert POV delay if POV color
-    if (isPOVColor) {
-      FastLED.delay(POVSpeedDelay);
+    // Make a single pixel travel down the stick
+    for (int travel_i = numLEDs - 1; travel_i > pat_i_0 + 2; travel_i--) {
+      if (travel_i == pat_i_1 || travel_i == pat_i_1 + 1 || travel_i == pat_i_1 + 2) {
+        leds[travel_i + 2] = color;
+        leds[travel_i + 1] = color;
+        leds[travel_i] = color;
+      } else {
+        leds[travel_i] = 0; // OFF
+      }
     }
-
-    showColumn();
+    // Turn on the lit pixels
+    for (int lit_i = pat_i_0; lit_i >= 0; lit_i--) {
+      leds[lit_i] = color;
+    }
+    FastLED.show();
+    FastLED.delay(speedDelay);
   }
 
-  // Oscillate brightness from min to max
-  if (!patternReverse) {
-    if (pat_i_1 > minPatternBrightness) {
-      // Repeat brightness levels that are the lower half of the pulsing range so it slows down
-      if ((pat_i_1 < pat_i_0 / 2) && (pat_i_1 >= pat_i_0 / 3)) {
-        if (pat_i_2 == (numRepeats / 2) - 1) {
-          pat_i_1--;
-          pat_i_2 = 0;
-        } else {
-          pat_i_2++;
-        }
-      } else if (pat_i_1 < pat_i_0 / 3) {
-        if (pat_i_2 == numRepeats - 1) {
-          pat_i_1--;
-          pat_i_2 = 0;
-        } else {
-          pat_i_2++;
-        }
-      } else {
-        pat_i_1--;
-      }
-    } else {
-      patternReverse = true;
-    }
-  } else {
-    if (pat_i_1 < pat_i_0) { // pat_i_0 is max brightness for this pattern
-      // Repeat brightness levels that are the lower half of the pulsing range
-      if ((pat_i_1 < pat_i_0 / 2) && (pat_i_1 >= pat_i_0 / 3)) {
-        if (pat_i_2 == (numRepeats / 2) - 1) {
-          pat_i_1++;
-          pat_i_2 = 0;
-        } else {
-          pat_i_2++;
-        }
-      } else if (pat_i_1 < pat_i_0 / 3) {
-        if (pat_i_2 == numRepeats - 1) {
-          pat_i_1++;
-          pat_i_2 = 0;
-        } else {
-          pat_i_2++;
-        }
-      } else {
-        pat_i_1++;
-      }
-    } else {
-      patternReverse = false;
-    }
-  }
+  pat_i_1--;
+  // END Reversed pattern direction
+******/
 }
+
 
 // Twinkle Animation
 void twinkle() {
-  int numColors = getNumColors();
-  bool isPOVColor = isPOVColorIndex(selectedPatternColorIdx);
-  int colorIterations = isPOVColor ? 2 : 1; // 2 colors for POV
+  uint8_t numColorsInSet = getNumColorsInSet(selectedColorIdx);
   uint32_t color;
-  
   // group the lights into groups of 15
   int groupSize = 15;
   int pixel_i = 0;
   int group_i = 0;
-  int rand_i_0,
-    rand_i_1,
-    rand_i_2;
+  int rand_i_0, rand_i_1, rand_i_2;
 
-  for (int c=0; c < colorIterations; c++) {
-    // Get the color
-    color = isPOVColor ? COLORS[ COLORS_POV[selectedPatternColorIdx - numColors][c] ] : COLORS[selectedPatternColorIdx];
+  for (uint8_t color_i = 0; color_i < numColorsInSet; color_i++) {
+    if (numColorsInSet == 3) {
+      color = COLORS[ POV_COLOR_SETS_3[getPovColorIdx(selectedColorIdx, numColorsInSet)][color_i] ];
+    } else if (numColorsInSet == 2) {
+      color = COLORS[ POV_COLOR_SETS_2[getPovColorIdx(selectedColorIdx, numColorsInSet)][color_i] ];
+    } else {
+      color = COLORS[selectedColorIdx];
+    }
 
     // Light 3 random pixels out of every group of 15
     while (pixel_i < numLEDs) {
@@ -1277,28 +1048,29 @@ void twinkle() {
       }
 
       if (pixel_i == rand_i_0 || pixel_i == rand_i_1 || pixel_i == rand_i_2) {
-        patternColumn[pixel_i] = color;
+        leds[pixel_i] = color;
       } else {
-        patternColumn[pixel_i] = 0; // BLACK
+        leds[pixel_i] = 0; // OFF
       }
       pixel_i++;
     }
-
-    // Insert POV delay if POV color
-    if (isPOVColor) {
-      FastLED.delay(POVSpeedDelay);
-    }
-
-    showColumn();
+    
+    FastLED.show();
+    delayPov(numColorsInSet); // Inserts delay if selected color set is POV
   }
+
+  // FastLED.delay(speedDelay);
 }
+
 
 void setAllPixels(uint32_t color) {
   for (int i=0; i < numLEDs; i++) {
-    patternColumn[i] = color;
+    leds[i] = color;
   }
-  showColumn();
+  FastLED.show();
+  FastLED.delay(speedDelay);
 }
+
 
 // Input a value 0 to 255 to get a color value.
 // The colours are a transition r - g - b - back to r.
@@ -1321,6 +1093,7 @@ uint32_t Wheel(byte WheelPos) {
   return newColor;
 }
 
+
 // Alert user by flashing stick
 void alertUser(uint32_t color, uint8_t numFlashes, uint16_t midDelay, uint16_t endDelay) {    
   for (uint8_t i=0; i < numFlashes; i++) {
@@ -1333,8 +1106,10 @@ void alertUser(uint32_t color, uint8_t numFlashes, uint16_t midDelay, uint16_t e
   FastLED.delay(endDelay);
 
   patternChanged = true; // Trigger a pattern restart for patterns that are unchanging
-  showColumn();
+  FastLED.show();
+  FastLED.delay(speedDelay);
 }
+
 
 // Reset indexes and flags
 void resetIndexesFlags() {
@@ -1352,6 +1127,7 @@ void resetIndexesFlags() {
   }
 }
 
+
 /**
  * Get the current state of a button
  * @param btnPin
@@ -1360,6 +1136,7 @@ void resetIndexesFlags() {
 bool getButtonState(uint16_t btnPin) {
   return digitalRead(btnPin) == LOW ? true : false;
 }
+
 
 /**
  * Perform the action for a single or multi-button press
@@ -1448,12 +1225,14 @@ void btnAction(uint8_t btnsVal, bool longPress = false) {
   }
 }
 
+
 // Check for button input
-void checkButtonPressNew() {  
+void checkButtonPress() {  
   // Get button states
   bool btn1 = getButtonState(BTN_1_PIN);
   bool btn2 = getButtonState(BTN_2_PIN);
   bool btn3 = getButtonState(BTN_3_PIN);
+
   uint8_t currentBtnsVal = 0;
   bool btnStateChanged = false;
   bool btnReleased = false;
@@ -1508,6 +1287,7 @@ void checkButtonPressNew() {
   prevBtnsVal = currentBtnsVal;
 }
 
+
 // Toggle auto cycle mode ON/OFF 
 void toggleAutoCycle() {
   autoCycle = !autoCycle;
@@ -1521,38 +1301,122 @@ void toggleAutoCycle() {
   }
 }
 
+
 // Set auto cycle mode ON/OFF
 void setAutoCycle(bool state) {
   autoCycle = state;
 }
 
-// Check to see if the auto cycle time interval has elapsed
-// return true if time has elapsed, else return false
-bool autoCycleTimeHasElapsed() {
-  uint16_t autoCycleInterval = 3000; // 3 seconds
-
-  if (millis() - autoCycleTimerStart > autoCycleInterval) {
-    autoCycleTimerStart = millis();
-    return true;
-  } else {
-    return false;
-  }
-
-  return (millis() - autoCycleTimerStart) > autoCycleInterval ? true : false;
-}
 
 void loop() {
-  
-  // autoCycleTimerStart
-
   showPattern();
 
-  checkButtonPressNew();
+  checkButtonPress();
 
   // If auto cycle mode is on, change to next pattern 
-  if (autoCycle && autoCycleTimeHasElapsed()) {
-    changePattern(1);
+  // if (autoCycle && autoCycleTimeHasElapsed()) {
+  if (autoCycle) {
+    EVERY_N_MILLISECONDS(AUTO_INTERVAL){ changePattern(1); };
   }
 
   cycleCounter++;
+}
+
+
+// Breathe Animation
+void breatheAnimation() {
+  // TODO: Rewrite this pattern
+  // TODO: Fix this pattern. It is causing the stick to get stuck sometimes, and also messing up the brightness when you go to another pattern
+  // NOTE: In order to change the top-end brightness of this pattern, user
+  // must switch to a different pattern, change the brightness, and then switch back.
+/*******
+  int numColors = getNumColors();
+  bool isPOVColor = isPOVColorIndex(selectedColorIdx);
+  int colorIterations = isPOVColor ? 2 : 1; // 2 colors for POV
+  uint32_t color;
+
+  uint8_t minPatternBrightness = 10;
+  int numRepeats = 4;
+  
+  // Loop the brightness from minBrightness up to the brightness
+  // setting the user has set.
+  // Initialize brightness
+  if (patternChanged) {
+    pat_i_0 = FastLED.getBrightness(); // pat_i_0 is the max brightness
+    pat_i_1 = pat_i_0;
+    patternChanged = false;
+    patternStartingBrightness = pat_i_0;
+
+    // Serial.print(F("Max breathe brightness: "));
+    // Serial.println(pat_i_0);
+  }
+
+  for (int c=0; c < colorIterations; c++) {
+    // Get the color
+    color = isPOVColor ? COLORS[ POV_COLOR_SETS_2[selectedColorIdx - numColors][c] ] : COLORS[selectedColorIdx];
+    
+    // Light the pixels
+    for (int i = 0; i < numLEDs; i++) {
+      leds[i] = color;
+    }
+    FastLED.setBrightness(pat_i_1);
+
+    // Insert POV delay if POV color
+    if (isPOVColor) {
+      FastLED.delay(POVSpeedDelay);
+    }
+
+    FastLED.show();
+    FastLED.delay(speedDelay);
+  }
+
+  // Oscillate brightness from min to max
+  if (!patternReverse) {
+    if (pat_i_1 > minPatternBrightness) {
+      // Repeat brightness levels that are the lower half of the pulsing range so it slows down
+      if ((pat_i_1 < pat_i_0 / 2) && (pat_i_1 >= pat_i_0 / 3)) {
+        if (pat_i_2 == (numRepeats / 2) - 1) {
+          pat_i_1--;
+          pat_i_2 = 0;
+        } else {
+          pat_i_2++;
+        }
+      } else if (pat_i_1 < pat_i_0 / 3) {
+        if (pat_i_2 == numRepeats - 1) {
+          pat_i_1--;
+          pat_i_2 = 0;
+        } else {
+          pat_i_2++;
+        }
+      } else {
+        pat_i_1--;
+      }
+    } else {
+      patternReverse = true;
+    }
+  } else {
+    if (pat_i_1 < pat_i_0) { // pat_i_0 is max brightness for this pattern
+      // Repeat brightness levels that are the lower half of the pulsing range
+      if ((pat_i_1 < pat_i_0 / 2) && (pat_i_1 >= pat_i_0 / 3)) {
+        if (pat_i_2 == (numRepeats / 2) - 1) {
+          pat_i_1++;
+          pat_i_2 = 0;
+        } else {
+          pat_i_2++;
+        }
+      } else if (pat_i_1 < pat_i_0 / 3) {
+        if (pat_i_2 == numRepeats - 1) {
+          pat_i_1++;
+          pat_i_2 = 0;
+        } else {
+          pat_i_2++;
+        }
+      } else {
+        pat_i_1++;
+      }
+    } else {
+      patternReverse = false;
+    }
+  }
+*********/
 }
